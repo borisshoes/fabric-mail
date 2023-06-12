@@ -1,6 +1,7 @@
 package net.borisshoes.fabricmail.cardinalcomponents;
 
 import com.mojang.authlib.GameProfile;
+import net.borisshoes.fabricmail.FabricMail;
 import net.fabricmc.fabric.api.util.NbtType;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
@@ -22,7 +23,15 @@ public class MailComponent implements IMailComponent{
          NbtList mailsTag = tag.getList("Mails", NbtType.COMPOUND);
          for (NbtElement e : mailsTag) {
             NbtCompound mailTag = (NbtCompound) e;
-            mails.add(new MailMessage(mailTag.getString("from"),mailTag.getString("to"),mailTag.getString("message"),UUID.fromString(mailTag.getString("id")),mailTag.getLong("time"), mailTag.getCompound("parcel")));
+            GameProfile senderProf = new GameProfile(FabricMail.getIdOrNull(mailTag.getString("fromId")), mailTag.getString("from"));
+            mails.add(new MailMessage(
+                  senderProf,
+                  mailTag.getString("to"),
+                  FabricMail.getIdOrNull(mailTag.getString("toId")),
+                  mailTag.getString("message"),
+                  UUID.fromString(mailTag.getString("id")),
+                  mailTag.getLong("time"),
+                  mailTag.getCompound("parcel")));
          }
       }catch(Exception e){
          e.printStackTrace();
@@ -36,7 +45,9 @@ public class MailComponent implements IMailComponent{
          for(MailMessage mail : mails){
             NbtCompound mailTag = new NbtCompound();
             mailTag.putString("from",mail.sender());
+            mailTag.putString("fromId", mail.senderId() == null ? "" : mail.senderId().toString());
             mailTag.putString("to",mail.recipient());
+            mailTag.putString("toId", mail.recipientId() == null ? "" : mail.recipientId().toString());
             mailTag.putString("message",mail.message());
             mailTag.putString("id",mail.uuid().toString());
             mailTag.putLong("time",mail.timestamp());
@@ -68,6 +79,7 @@ public class MailComponent implements IMailComponent{
    @Override
    public List<MailMessage> getMailsFor(ServerPlayerEntity player){
       if(player.getServer() == null) return new ArrayList<>();
+      mails.removeIf(mail -> !mail.checkValid(player.getServer()));
       return mails.stream().filter(mail -> {
          GameProfile p = mail.findRecipient(player.getServer());
          return p != null && p.getId().equals(player.getUuid());
@@ -77,6 +89,7 @@ public class MailComponent implements IMailComponent{
    @Override
    public void clearMailFor(ServerPlayerEntity player){
       if(player.getServer() == null) return;
+      mails.removeIf(mail -> !mail.checkValid(player.getServer()));
       mails.removeIf(mail -> {
          GameProfile p = mail.findRecipient(player.getServer());
          return p != null && p.getId().equals(player.getUuid());

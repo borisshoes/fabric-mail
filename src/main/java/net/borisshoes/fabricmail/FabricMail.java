@@ -2,12 +2,16 @@ package net.borisshoes.fabricmail;
 
 import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.borisshoes.fabricmail.cardinalcomponents.IMailComponent;
 import net.borisshoes.fabricmail.cardinalcomponents.MailMessage;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.command.argument.BlockPosArgumentType;
+import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.ItemEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.MinecraftServer;
@@ -22,7 +26,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 import static com.mojang.brigadier.arguments.BoolArgumentType.bool;
 import static com.mojang.brigadier.arguments.BoolArgumentType.getBool;
@@ -57,7 +64,7 @@ public class FabricMail implements ModInitializer {
                      .then(literal("all")
                            .executes(context -> FabricMail.delete(context,-1))))
                .then(literal("send")
-                     .then(argument("player",word())
+                     .then(argument("player",word()).suggests(this::getRecipientSuggestions)
                            .then(argument("hasParcel",bool())
                                  .then(argument("message",greedyString())
                                        .executes(context -> FabricMail.send(context,getString(context,"player"),getString(context,"message"),getBool(context,"hasParcel")))))
@@ -68,6 +75,13 @@ public class FabricMail implements ModInitializer {
                            .executes(context -> FabricMail.broadcast(context,getString(context,"message"),false))))
          );
       });
+   }
+   
+   private CompletableFuture<Suggestions> getRecipientSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder){
+      String start = builder.getRemaining().toLowerCase();
+      List<String> playerNames = context.getSource().getServer().getPlayerManager().getPlayerList().stream().map(PlayerEntity::getEntityName).toList();
+      playerNames.stream().filter(s -> s.startsWith(start)).forEach(builder::suggest);
+      return builder.buildFuture();
    }
    
    private static int broadcast(CommandContext<ServerCommandSource> context, String message, boolean parcel){
@@ -98,8 +112,8 @@ public class FabricMail implements ModInitializer {
       }
    
       for(ServerPlayerEntity player : server.getPlayerManager().getPlayerList()){
-         MailMessage newMail = new MailMessage("System",player.getGameProfile().getName(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
-   
+         MailMessage newMail = new MailMessage(new GameProfile(null,"System"),player.getGameProfile().getName(),player.getGameProfile().getId(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
+         newMail.checkValid(server);
          mailbox.addMail(newMail);
          List<MailMessage> mails = mailbox.getMailsFor(player);
          int index = -1;
@@ -178,39 +192,47 @@ public class FabricMail implements ModInitializer {
          }
    
          NbtCompound parcelTag = new NbtCompound();
+         ItemStack stack = ItemStack.EMPTY;
          if(parcel){
-            ItemStack stack = player.getMainHandStack();
+            stack = player.getMainHandStack();
             if(!stack.isEmpty()){
                stack.writeNbt(parcelTag);
-               if(!player.isCreative())
-                  player.getInventory().removeOne(stack);
             }
          }
          
-         MailMessage newMail = new MailMessage(player.getGameProfile().getName(),to,message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
+         ServerPlayerEntity onlineTo = server.getPlayerManager().getPlayer(to);
          
-         mailbox.addMail(newMail);
-         ServerPlayerEntity recipient = player.getServer().getPlayerManager().getPlayer(to);
-         if(recipient != null){
-            List<MailMessage> mails = mailbox.getMailsFor(recipient);
-            int index = -1;
-            for(int i = 0; i < mails.size(); i++){
-               MailMessage mail = mails.get(i);
-               if(mail.uuid().equals(newMail.uuid())){
-                  index = i;
-                  break;
+         MailMessage newMail = new MailMessage(player.getGameProfile(),to,onlineTo == null ? null : onlineTo.getUuid(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
+         if(newMail.checkValid(server)){
+            if(!stack.isEmpty() && !player.isCreative())
+               player.getInventory().removeOne(stack);
+            
+            mailbox.addMail(newMail);
+            ServerPlayerEntity recipient = player.getServer().getPlayerManager().getPlayer(to);
+            if(recipient != null){
+               List<MailMessage> mails = mailbox.getMailsFor(recipient);
+               int index = -1;
+               for(int i = 0; i < mails.size(); i++){
+                  MailMessage mail = mails.get(i);
+                  if(mail.uuid().equals(newMail.uuid())){
+                     index = i;
+                     break;
+                  }
                }
+               int finalIndex = index;
+               recipient.sendMessage(Text.literal("You Just Received Mail!").styled(s ->
+                     s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail read "+(finalIndex+1)))
+                           .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to View Your Mail!")))
+                           .withColor(Formatting.LIGHT_PURPLE)));
             }
-            int finalIndex = index;
-            recipient.sendMessage(Text.literal("You Just Received Mail!").styled(s ->
-                  s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail read "+(finalIndex+1)))
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to View Your Mail!")))
-                        .withColor(Formatting.LIGHT_PURPLE)));
+            
+            player.sendMessage(Text.literal("Message Sent!").formatted(Formatting.AQUA));
+            
+            logger.log(Level.INFO,player.getEntityName()+" sent mail to "+to+": "+message);
+         }else{
+            source.sendError(Text.literal("Recipient Does Not Exist"));
          }
          
-         player.sendMessage(Text.literal("Message Sent!").formatted(Formatting.AQUA));
-         
-         logger.log(Level.INFO,player.getEntityName()+" sent mail to "+to+": "+message);
          return 1;
       }else{
          source.sendError(Text.literal("Only players can send mail"));
@@ -259,7 +281,7 @@ public class FabricMail implements ModInitializer {
             player.sendMessage(Text.literal("Invalid Mail Index: "+index).formatted(Formatting.RED));
             return -1;
          }
-         
+
          MailMessage mail = mails.get(index-1);
          player.sendMessage(Text.literal(""));
          player.sendMessage(Text.literal("")
@@ -318,6 +340,15 @@ public class FabricMail implements ModInitializer {
       itemEntity = player.dropItem(stack, false);
       if (itemEntity != null) {
          itemEntity.setDespawnImmediately();
+      }
+   }
+   
+   
+   public static UUID getIdOrNull(String id){
+      try{
+         return UUID.fromString(id);
+      }catch(Exception e){
+         return null;
       }
    }
 }

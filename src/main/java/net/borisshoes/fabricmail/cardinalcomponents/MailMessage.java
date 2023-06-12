@@ -1,26 +1,39 @@
 package net.borisshoes.fabricmail.cardinalcomponents;
 
+import com.google.common.collect.Iterables;
 import com.mojang.authlib.GameProfile;
+import com.mojang.authlib.minecraft.MinecraftSessionService;
+import com.mojang.authlib.properties.Property;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.util.UserCache;
+import net.minecraft.util.Util;
+import org.jetbrains.annotations.Nullable;
 
+import java.rmi.server.UID;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
 public class MailMessage {
    
    private final String sender;
+   private UUID senderId;
    private final String recipient;
+   private UUID recipientId;
    private final String message;
    private final UUID uuid;
    private final long timestamp;
    private NbtCompound parcel;
    
    
-   public MailMessage(String sender, String recipient, String message, UUID uuid, long timestamp, NbtCompound parcel){
-      this.sender = sender;
+   public MailMessage(GameProfile senderProfile, String recipient, @Nullable UUID recipientId, String message, UUID uuid, long timestamp, NbtCompound parcel){
+      this.senderId = senderProfile.getId();
+      this.sender = senderProfile.getName();
       this.recipient = recipient;
+      this.recipientId = recipientId;
       this.message = message;
       this.uuid = uuid;
       this.timestamp = timestamp;
@@ -31,9 +44,13 @@ public class MailMessage {
       return sender;
    }
    
+   public UUID senderId() { return senderId; }
+   
    public String recipient(){
       return recipient;
    }
+   
+   public UUID recipientId(){ return recipientId; }
    
    public String message(){
       return message;
@@ -51,12 +68,25 @@ public class MailMessage {
       return parcel;
    }
    
-   public GameProfile findSender(MinecraftServer server){
-      return server.getUserCache().findByName(sender).orElse(null);
+   public boolean checkValid(MinecraftServer server){
+      GameProfile profile = findRecipient(server);
+      return profile != null;
    }
    
    public GameProfile findRecipient(MinecraftServer server){
-      return server.getUserCache().findByName(recipient).orElse(null);
+      if(server.getUserCache() == null) return null;
+      
+      if(recipientId != null && recipient != null){
+         return new GameProfile(recipientId, recipient);
+      }else{
+         GameProfile newProfile = server.getUserCache().findByName(recipient).orElse(null);
+         if(newProfile != null){
+            if(recipientId == null && newProfile.getId() != null){
+               recipientId = newProfile.getId();
+            }
+         }
+         return newProfile;
+      }
    }
    
    public String getTimeDiff(long curTime){
