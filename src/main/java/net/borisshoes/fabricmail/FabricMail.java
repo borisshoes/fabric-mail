@@ -203,7 +203,10 @@ public class FabricMail implements ModInitializer {
          ServerPlayerEntity onlineTo = server.getPlayerManager().getPlayer(to);
          
          MailMessage newMail = new MailMessage(player.getGameProfile(),to,onlineTo == null ? null : onlineTo.getUuid(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
-         if(newMail.checkValid(server)){
+         if(newMail.sender().equals(newMail.recipient())){
+            source.sendError(Text.literal("You cannot send a mail to yourself!"));
+            return -1;
+         }else if(newMail.checkValid(server)){
             if(!stack.isEmpty() && !player.isCreative())
                player.getInventory().removeOne(stack);
             
@@ -233,7 +236,7 @@ public class FabricMail implements ModInitializer {
             source.sendError(Text.literal("Recipient Does Not Exist"));
          }
          
-         return 1;
+         return -1;
       }else{
          source.sendError(Text.literal("Only players can send mail"));
       }
