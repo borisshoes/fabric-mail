@@ -24,8 +24,8 @@
     "fabricmail.mixins.json"
   ],
   "depends": {
-    "fabricloader": ">=0.14.13",
+    "fabricloader": ">=${loader_version}",
     "fabric": "*",
-    "minecraft": ">=1.19.4"
+    "minecraft": ">=${minecraft_version}"
   }
 }

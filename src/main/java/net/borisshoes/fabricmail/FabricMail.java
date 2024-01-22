@@ -79,7 +79,7 @@ public class FabricMail implements ModInitializer {
    
    private CompletableFuture<Suggestions> getRecipientSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder){
       String start = builder.getRemaining().toLowerCase();
-      List<String> playerNames = context.getSource().getServer().getPlayerManager().getPlayerList().stream().map(PlayerEntity::getEntityName).toList();
+      List<String> playerNames = context.getSource().getServer().getPlayerManager().getPlayerList().stream().map(PlayerEntity::getNameForScoreboard).toList();
       playerNames.stream().filter(s -> s.startsWith(start)).forEach(builder::suggest);
       return builder.buildFuture();
    }
@@ -231,7 +231,7 @@ public class FabricMail implements ModInitializer {
             
             player.sendMessage(Text.literal("Message Sent!").formatted(Formatting.AQUA));
             
-            logger.log(Level.INFO,player.getEntityName()+" sent mail to "+to+": "+message);
+            logger.log(Level.INFO,player.getNameForScoreboard()+" sent mail to "+to+": "+message);
          }else{
             source.sendError(Text.literal("Recipient Does Not Exist"));
          }
