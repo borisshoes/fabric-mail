@@ -4,32 +4,33 @@ import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import com.mojang.serialization.DataResult;
 import net.borisshoes.fabricmail.cardinalcomponents.IMailComponent;
 import net.borisshoes.fabricmail.cardinalcomponents.MailMessage;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.minecraft.command.argument.BlockPosArgumentType;
-import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtElement;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.*;
+import net.minecraft.text.ClickEvent;
+import net.minecraft.text.HoverEvent;
+import net.minecraft.text.MutableText;
+import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
-import net.minecraft.util.math.BlockBox;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 import static com.mojang.brigadier.arguments.BoolArgumentType.bool;
 import static com.mojang.brigadier.arguments.BoolArgumentType.getBool;
@@ -37,8 +38,6 @@ import static com.mojang.brigadier.arguments.IntegerArgumentType.getInteger;
 import static com.mojang.brigadier.arguments.IntegerArgumentType.integer;
 import static com.mojang.brigadier.arguments.StringArgumentType.*;
 import static net.borisshoes.fabricmail.cardinalcomponents.WorldDataComponentInitializer.MAILS;
-import static net.minecraft.command.argument.BlockPosArgumentType.blockPos;
-import static net.minecraft.command.argument.EntityArgumentType.getPlayers;
 import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
 
@@ -65,11 +64,12 @@ public class FabricMail implements ModInitializer {
                            .executes(context -> FabricMail.delete(context,-1))))
                .then(literal("send")
                      .then(argument("player",word()).suggests(this::getRecipientSuggestions)
-                           .then(argument("hasParcel",bool())
-                                 .then(argument("message",greedyString())
-                                       .executes(context -> FabricMail.send(context,getString(context,"player"),getString(context,"message"),getBool(context,"hasParcel")))))
                            .then(argument("message",greedyString())
                                  .executes(context -> FabricMail.send(context,getString(context,"player"),getString(context,"message"),false)))))
+               .then(literal("parcel")
+                     .then(argument("player",word()).suggests(this::getRecipientSuggestions)
+                           .then(argument("message",greedyString())
+                                 .executes(context -> FabricMail.send(context,getString(context,"player"),getString(context,"message"),true)))))
                .then(literal("broadcast").requires(source -> source.hasPermissionLevel(2))
                      .then(argument("message",greedyString())
                            .executes(context -> FabricMail.broadcast(context,getString(context,"message"),false))))
@@ -80,7 +80,7 @@ public class FabricMail implements ModInitializer {
    private CompletableFuture<Suggestions> getRecipientSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder){
       String start = builder.getRemaining().toLowerCase();
       List<String> playerNames = context.getSource().getServer().getPlayerManager().getPlayerList().stream().map(PlayerEntity::getNameForScoreboard).toList();
-      playerNames.stream().filter(s -> s.startsWith(start)).forEach(builder::suggest);
+      playerNames.stream().filter(s -> s.toLowerCase().startsWith(start)).forEach(builder::suggest);
       return builder.buildFuture();
    }
    
@@ -88,7 +88,7 @@ public class FabricMail implements ModInitializer {
       ServerCommandSource source = context.getSource();
       MinecraftServer server = source.getServer();
    
-      IMailComponent mailbox = MAILS.get(server.getWorld(ServerWorld.OVERWORLD));
+      IMailComponent mailbox = MAILS.get(server.getOverworld());
    
       if(!source.isExecutedByPlayer() && parcel){
          source.sendMessage(Text.literal("Only a player can broadcast with a parcel").formatted(Formatting.RED));
@@ -105,9 +105,12 @@ public class FabricMail implements ModInitializer {
          ServerPlayerEntity player = source.getPlayer();
          ItemStack stack = player.getMainHandStack();
          if(!stack.isEmpty()){
-            stack.writeNbt(parcelTag);
-            if(!player.isCreative())
-               player.getInventory().removeOne(stack);
+            NbtElement element = stack.encode(context.getSource().getRegistryManager());
+            if(element instanceof NbtCompound compound){
+               parcelTag = compound;
+               if(!player.isCreative())
+                  player.getInventory().removeOne(stack);
+            }
          }
       }
    
@@ -141,7 +144,7 @@ public class FabricMail implements ModInitializer {
       ServerCommandSource source = context.getSource();
       MinecraftServer server = source.getServer();
       if(source.isExecutedByPlayer() && server != null){
-         IMailComponent mailbox = MAILS.get(server.getWorld(ServerWorld.OVERWORLD));
+         IMailComponent mailbox = MAILS.get(server.getOverworld());
          ServerPlayerEntity player = source.getPlayer();
          List<MailMessage> mails = mailbox.getMailsFor(player);
    
@@ -183,7 +186,7 @@ public class FabricMail implements ModInitializer {
       ServerCommandSource source = context.getSource();
       MinecraftServer server = source.getServer();
       if(source.isExecutedByPlayer() && server != null){
-         IMailComponent mailbox = MAILS.get(server.getWorld(ServerWorld.OVERWORLD));
+         IMailComponent mailbox = MAILS.get(server.getOverworld());
          ServerPlayerEntity player = source.getPlayer();
          
          if(message.length() > 1024){
@@ -196,7 +199,12 @@ public class FabricMail implements ModInitializer {
          if(parcel){
             stack = player.getMainHandStack();
             if(!stack.isEmpty()){
-               stack.writeNbt(parcelTag);
+               NbtElement element = stack.encode(context.getSource().getRegistryManager());
+               if(element instanceof NbtCompound compound){
+                  parcelTag = compound;
+                  if(!player.isCreative())
+                     player.getInventory().removeOne(stack);
+               }
             }
          }
          
@@ -247,7 +255,7 @@ public class FabricMail implements ModInitializer {
       ServerCommandSource source = context.getSource();
       MinecraftServer server = source.getServer();
       if(source.isExecutedByPlayer() && server != null){
-         IMailComponent mailbox = MAILS.get(server.getWorld(ServerWorld.OVERWORLD));
+         IMailComponent mailbox = MAILS.get(server.getOverworld());
          ServerPlayerEntity player = source.getPlayer();
          List<MailMessage> mails = mailbox.getMailsFor(player);
       
@@ -276,7 +284,7 @@ public class FabricMail implements ModInitializer {
       ServerCommandSource source = context.getSource();
       MinecraftServer server = source.getServer();
       if(source.isExecutedByPlayer() && server != null){
-         IMailComponent mailbox = MAILS.get(server.getWorld(ServerWorld.OVERWORLD));
+         IMailComponent mailbox = MAILS.get(server.getOverworld());
          ServerPlayerEntity player = source.getPlayer();
          List<MailMessage> mails = mailbox.getMailsFor(player);
          
@@ -301,7 +309,7 @@ public class FabricMail implements ModInitializer {
                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to Delete Mail")))
                            .withColor(Formatting.LIGHT_PURPLE)));
          
-         givePlayerStack(player,mail.popParcel());
+         givePlayerStack(player,mail.popParcel(context.getSource().getRegistryManager()));
          
          return 1;
       }else{
@@ -312,7 +320,7 @@ public class FabricMail implements ModInitializer {
    
    public static void informMail(ServerPlayerEntity player){
       MinecraftServer server = player.getServer();
-      IMailComponent mailbox = MAILS.get(server.getWorld(ServerWorld.OVERWORLD));
+      IMailComponent mailbox = MAILS.get(server.getOverworld());
       List<MailMessage> mails = mailbox.getMailsFor(player);
       if(mails.size() == 0) return;
    

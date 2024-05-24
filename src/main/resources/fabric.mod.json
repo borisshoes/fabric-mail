@@ -4,9 +4,13 @@
   "version": "${version}",
   "name": "Fabric Mail",
   "description": "",
-  "authors": [],
-  "contact": {},
-  "license": "MIT",
+  "authors": [
+    "BorisShoes"
+  ],
+  "contact": {
+    "repo": "https://github.com/borisshoes/fabric-mail"
+  },
+  "license": "OSL-3.0",
   "icon": "assets/fabricmail/icon.png",
   "environment": "server",
   "entrypoints": {

@@ -6,6 +6,7 @@ import com.mojang.authlib.minecraft.MinecraftSessionService;
 import com.mojang.authlib.properties.Property;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.UserCache;
 import net.minecraft.util.Util;
@@ -13,6 +14,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.rmi.server.UID;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
@@ -111,12 +113,14 @@ public class MailMessage {
       return diff;
    }
    
-   private ItemStack peekParcel(){
-      return ItemStack.fromNbt(parcel);
+   private ItemStack peekParcel(RegistryWrapper.WrapperLookup registryLookup){
+      Optional<ItemStack> opt = ItemStack.fromNbt(registryLookup,parcel);
+      return opt.orElse(ItemStack.EMPTY);
    }
    
-   public ItemStack popParcel(){
-      ItemStack stack = ItemStack.fromNbt(parcel);
+   public ItemStack popParcel(RegistryWrapper.WrapperLookup registryLookup){
+      Optional<ItemStack> opt = ItemStack.fromNbt(registryLookup,parcel);
+      ItemStack stack = opt.orElse(ItemStack.EMPTY);
       parcel = new NbtCompound();
       return Objects.requireNonNullElse(stack, ItemStack.EMPTY);
    }

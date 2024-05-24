@@ -6,6 +6,7 @@ import net.fabricmc.fabric.api.util.NbtType;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
+import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.server.network.ServerPlayerEntity;
 
 import java.util.ArrayList;
@@ -17,7 +18,7 @@ public class MailComponent implements IMailComponent{
    private final List<MailMessage> mails = new ArrayList<>();
    
    @Override
-   public void readFromNbt(NbtCompound tag){
+   public void readFromNbt(NbtCompound tag, RegistryWrapper.WrapperLookup registryLookup){
       try{
          mails.clear();
          NbtList mailsTag = tag.getList("Mails", NbtType.COMPOUND);
@@ -39,7 +40,7 @@ public class MailComponent implements IMailComponent{
    }
    
    @Override
-   public void writeToNbt(NbtCompound tag){
+   public void writeToNbt(NbtCompound tag, RegistryWrapper.WrapperLookup registryLookup){
       try{
          NbtList mailsTag = new NbtList();
          for(MailMessage mail : mails){

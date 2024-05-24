@@ -1,9 +1,10 @@
 package net.borisshoes.fabricmail.cardinalcomponents;
 
-import dev.onyxstudios.cca.api.v3.component.ComponentKey;
-import dev.onyxstudios.cca.api.v3.component.ComponentRegistryV3;
-import dev.onyxstudios.cca.api.v3.world.WorldComponentFactoryRegistry;
-import dev.onyxstudios.cca.api.v3.world.WorldComponentInitializer;
+import net.minecraft.server.world.ServerWorld;
+import org.ladysnake.cca.api.v3.component.ComponentKey;
+import org.ladysnake.cca.api.v3.component.ComponentRegistryV3;
+import org.ladysnake.cca.api.v3.world.WorldComponentFactoryRegistry;
+import org.ladysnake.cca.api.v3.world.WorldComponentInitializer;
 import net.minecraft.util.Identifier;
 
 public class WorldDataComponentInitializer implements WorldComponentInitializer {
@@ -11,6 +12,6 @@ public class WorldDataComponentInitializer implements WorldComponentInitializer 
    
    @Override
    public void registerWorldComponentFactories(WorldComponentFactoryRegistry registry){
-      registry.register(MAILS, MailComponent.class, world -> new MailComponent());
+      registry.registerFor(ServerWorld.OVERWORLD,MAILS, MailComponent.class, world -> new MailComponent());
    }
 }
