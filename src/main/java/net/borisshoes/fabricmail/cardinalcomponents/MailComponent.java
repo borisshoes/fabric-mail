@@ -6,6 +6,7 @@ import net.fabricmc.fabric.api.util.NbtType;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
+import net.minecraft.nbt.NbtTypes;
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.server.network.ServerPlayerEntity;
 
@@ -21,7 +22,7 @@ public class MailComponent implements IMailComponent{
    public void readFromNbt(NbtCompound tag, RegistryWrapper.WrapperLookup registryLookup){
       try{
          mails.clear();
-         NbtList mailsTag = tag.getList("Mails", NbtType.COMPOUND);
+         NbtList mailsTag = tag.getList("Mails", NbtElement.COMPOUND_TYPE);
          for (NbtElement e : mailsTag) {
             NbtCompound mailTag = (NbtCompound) e;
             GameProfile senderProf = new GameProfile(FabricMail.getIdOrNull(mailTag.getString("fromId")), mailTag.getString("from"));

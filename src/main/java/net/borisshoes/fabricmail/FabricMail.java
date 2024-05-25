@@ -73,6 +73,9 @@ public class FabricMail implements ModInitializer {
                .then(literal("broadcast").requires(source -> source.hasPermissionLevel(2))
                      .then(argument("message",greedyString())
                            .executes(context -> FabricMail.broadcast(context,getString(context,"message"),false))))
+               .then(literal("airdrop").requires(source -> source.hasPermissionLevel(2))
+                     .then(argument("message",greedyString())
+                           .executes(context -> FabricMail.broadcast(context,getString(context,"message"),true))))
          );
       });
    }
