@@ -1,4 +1,4 @@
-# Ender Nexus
+# Fabric Mail
 
 A simple server-sided mod that gives players the ability to send messages to offline players, that they will receive the next time they log on. Players can also include an item in their message to other players.
 
