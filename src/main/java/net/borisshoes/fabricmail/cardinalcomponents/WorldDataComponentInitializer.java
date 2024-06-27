@@ -8,7 +8,7 @@ import org.ladysnake.cca.api.v3.world.WorldComponentInitializer;
 import net.minecraft.util.Identifier;
 
 public class WorldDataComponentInitializer implements WorldComponentInitializer {
-   public static final ComponentKey<IMailComponent> MAILS = ComponentRegistryV3.INSTANCE.getOrCreate(new Identifier("fabricmail", "mail"), IMailComponent.class);
+   public static final ComponentKey<IMailComponent> MAILS = ComponentRegistryV3.INSTANCE.getOrCreate(Identifier.of("fabricmail", "mail"), IMailComponent.class);
    
    @Override
    public void registerWorldComponentFactories(WorldComponentFactoryRegistry registry){
