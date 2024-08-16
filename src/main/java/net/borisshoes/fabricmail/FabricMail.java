@@ -205,8 +205,6 @@ public class FabricMail implements ModInitializer {
                NbtElement element = stack.encode(context.getSource().getRegistryManager());
                if(element instanceof NbtCompound compound){
                   parcelTag = compound;
-                  if(!player.isCreative())
-                     player.getInventory().removeOne(stack);
                }
             }
          }
