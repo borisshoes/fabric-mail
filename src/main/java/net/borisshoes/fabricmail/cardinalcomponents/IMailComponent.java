@@ -10,6 +10,8 @@ import java.util.List;
 public interface IMailComponent extends ComponentV3 {
    List<MailMessage> getMails();
    List<MailMessage> getMailsFor(ServerPlayerEntity player);
+   List<MailMessage> getMailsFrom(ServerPlayerEntity player);
+   MailMessage getMail(String mailId);
    boolean addMail(MailMessage mail);
    boolean removeMail(String mailId);
    void clearMailFor(ServerPlayerEntity player);

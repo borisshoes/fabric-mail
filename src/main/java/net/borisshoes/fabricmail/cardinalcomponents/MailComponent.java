@@ -12,6 +12,7 @@ import net.minecraft.server.network.ServerPlayerEntity;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public class MailComponent implements IMailComponent{
@@ -79,6 +80,12 @@ public class MailComponent implements IMailComponent{
    }
    
    @Override
+   public MailMessage getMail(String mailId){
+      Optional<MailMessage> opt = mails.stream().filter(m -> UUID.fromString(mailId).equals(m.uuid())).findFirst();
+      return opt.orElse(null);
+   }
+   
+   @Override
    public List<MailMessage> getMailsFor(ServerPlayerEntity player){
       if(player.getServer() == null) return new ArrayList<>();
       mails.removeIf(mail -> !mail.checkValid(player.getServer()));
@@ -86,6 +93,13 @@ public class MailComponent implements IMailComponent{
          GameProfile p = mail.findRecipient(player.getServer());
          return p != null && p.getId().equals(player.getUuid());
       }).toList();
+   }
+   
+   @Override
+   public List<MailMessage> getMailsFrom(ServerPlayerEntity player){
+      if(player.getServer() == null) return new ArrayList<>();
+      mails.removeIf(mail -> !mail.checkValid(player.getServer()));
+      return mails.stream().filter(mail -> mail.senderId().equals(player.getUuid())).toList();
    }
    
    @Override

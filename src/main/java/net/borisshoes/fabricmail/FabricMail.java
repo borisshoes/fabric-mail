@@ -28,6 +28,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -54,14 +55,19 @@ public class FabricMail implements ModInitializer {
          dispatcher.register(literal("mail")
                .then(literal("list")
                      .executes(FabricMail::list))
+               .then(literal("outbound")
+                     .executes(FabricMail::listOutbound))
+               .then(literal("revoke")
+                     .then(argument("mail_id",string())
+                           .executes(context -> FabricMail.revoke(context,getString(context,"mail_id")))))
                .then(literal("read")
-                     .then(argument("index",integer())
-                           .executes(context -> FabricMail.read(context,getInteger(context,"index")))))
+                     .then(argument("mail_id",string())
+                           .executes(context -> FabricMail.read(context,getString(context,"mail_id")))))
                .then(literal("delete")
-                     .then(argument("index",integer())
-                           .executes(context -> FabricMail.delete(context,getInteger(context,"index"))))
+                     .then(argument("mail_id",string())
+                           .executes(context -> FabricMail.delete(context,getString(context,"mail_id"))))
                      .then(literal("all")
-                           .executes(context -> FabricMail.delete(context,-1))))
+                           .executes(context -> FabricMail.delete(context,"all"))))
                .then(literal("send")
                      .then(argument("player",word()).suggests(this::getRecipientSuggestions)
                            .then(argument("message",greedyString())
@@ -82,7 +88,10 @@ public class FabricMail implements ModInitializer {
    
    private CompletableFuture<Suggestions> getRecipientSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder){
       String start = builder.getRemaining().toLowerCase();
-      List<String> playerNames = context.getSource().getServer().getPlayerManager().getPlayerList().stream().map(PlayerEntity::getNameForScoreboard).toList();
+      List<String> playerNames = new ArrayList<>(context.getSource().getServer().getPlayerManager().getPlayerList().stream().map(PlayerEntity::getNameForScoreboard).toList());
+      if(context.getSource().isExecutedByPlayer()){
+         playerNames.removeIf(name -> name.equals(context.getSource().getPlayer().getNameForScoreboard()));
+      }
       playerNames.stream().filter(s -> s.toLowerCase().startsWith(start)).forEach(builder::suggest);
       return builder.buildFuture();
    }
@@ -122,18 +131,15 @@ public class FabricMail implements ModInitializer {
          newMail.checkValid(server);
          mailbox.addMail(newMail);
          List<MailMessage> mails = mailbox.getMailsFor(player);
-         int index = -1;
          for(int i = 0; i < mails.size(); i++){
             MailMessage mail = mails.get(i);
             if(mail.uuid().equals(newMail.uuid())){
-               index = i;
                break;
             }
          }
-         int finalIndex = index;
          player.sendMessage(Text.literal("You Just Received Mail!").styled(s ->
-               s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail read "+(finalIndex+1)))
-                     .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to View Your Mail!")))
+               s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail read "+newMail.uuid().toString()))
+                     .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to View Your Mail! (Mail ID: "+newMail.uuid().toString()+")")))
                      .withColor(Formatting.LIGHT_PURPLE)));
       }
       
@@ -156,10 +162,8 @@ public class FabricMail implements ModInitializer {
                .append(Text.literal("You have ").formatted(Formatting.AQUA))
                .append(Text.literal(""+mails.size()).formatted(Formatting.LIGHT_PURPLE))
                .append(Text.literal(" messages (").formatted(Formatting.AQUA))
-               .append(Text.literal("/mail read <index>").formatted(Formatting.LIGHT_PURPLE))
-               .append(Text.literal(" or ").formatted(Formatting.AQUA))
-               .append(Text.literal("click").formatted(Formatting.LIGHT_PURPLE))
-               .append(Text.literal(" to read)").formatted(Formatting.AQUA)));
+               .append(Text.literal("Click to read").formatted(Formatting.LIGHT_PURPLE))
+               .append(Text.literal(")").formatted(Formatting.AQUA)));
          for(int i = 0; i < mails.size(); i++){
             MailMessage mail = mails.get(i);
             MutableText mailText = Text.literal("")
@@ -171,16 +175,55 @@ public class FabricMail implements ModInitializer {
             if(!mail.parcel().isEmpty()){
                mailText.append(Text.literal(" {Contains Parcel}").formatted(Formatting.GREEN));
             }
-   
+            
             int finalI = i;
             player.sendMessage(mailText.styled(s ->
-                  s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail read "+(finalI +1)))
+                  s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail read "+mail.uuid().toString()))
                         .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to Read Mail #"+(finalI+1))))));
          }
          player.sendMessage(Text.literal(""));
          return 1;
       }else{
          source.sendError(Text.literal("Only players can receive mail"));
+      }
+      return -1;
+   }
+   
+   private static int listOutbound(CommandContext<ServerCommandSource> context){
+      ServerCommandSource source = context.getSource();
+      MinecraftServer server = source.getServer();
+      if(source.isExecutedByPlayer() && server != null){
+         IMailComponent mailbox = MAILS.get(server.getOverworld());
+         ServerPlayerEntity player = source.getPlayer();
+         List<MailMessage> mails = mailbox.getMailsFrom(player);
+         
+         player.sendMessage(Text.literal(""));
+         player.sendMessage(Text.literal("")
+               .append(Text.literal("You have ").formatted(Formatting.AQUA))
+               .append(Text.literal(""+mails.size()).formatted(Formatting.LIGHT_PURPLE))
+               .append(Text.literal(" outbound messages ").formatted(Formatting.AQUA))
+               .append(Text.literal("(Click to Un-send)").formatted(Formatting.LIGHT_PURPLE))
+               .append(Text.literal(":").formatted(Formatting.AQUA)));
+         for(int i = 0; i < mails.size(); i++){
+            MailMessage mail = mails.get(i);
+            MutableText mailText = Text.literal("")
+                  .append(Text.literal("("+(i+1)+") ").formatted(Formatting.AQUA))
+                  .append(Text.literal("To: ").formatted(Formatting.BLUE))
+                  .append(Text.literal(mail.recipient()+" ").formatted(Formatting.DARK_AQUA))
+                  .append(Text.literal(mail.getTimeDiff(System.currentTimeMillis())).formatted(Formatting.GOLD));
+            
+            if(!mail.parcel().isEmpty()){
+               mailText.append(Text.literal(" {Contains Parcel}").formatted(Formatting.GREEN));
+            }
+            
+            player.sendMessage(mailText.styled(s ->
+                  s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail revoke "+mail.uuid().toString()))
+                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to Revoke this Mail")))));
+         }
+         player.sendMessage(Text.literal(""));
+         return 1;
+      }else{
+         source.sendError(Text.literal("Only players can send mail"));
       }
       return -1;
    }
@@ -223,22 +266,22 @@ public class FabricMail implements ModInitializer {
             ServerPlayerEntity recipient = player.getServer().getPlayerManager().getPlayer(to);
             if(recipient != null){
                List<MailMessage> mails = mailbox.getMailsFor(recipient);
-               int index = -1;
                for(int i = 0; i < mails.size(); i++){
                   MailMessage mail = mails.get(i);
                   if(mail.uuid().equals(newMail.uuid())){
-                     index = i;
                      break;
                   }
                }
-               int finalIndex = index;
                recipient.sendMessage(Text.literal("You Just Received Mail!").styled(s ->
-                     s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail read "+(finalIndex+1)))
-                           .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to View Your Mail!")))
+                     s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail read "+newMail.uuid().toString()))
+                           .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to View Your Mail! (Mail ID: "+newMail.uuid().toString()+")")))
                            .withColor(Formatting.LIGHT_PURPLE)));
             }
             
-            player.sendMessage(Text.literal("Message Sent!").formatted(Formatting.AQUA));
+            player.sendMessage(Text.literal("Message Sent!").styled(s ->
+                  s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail revoke "+newMail.uuid().toString()))
+                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to Revoke (Mail ID: "+newMail.uuid().toString()+")")))
+                        .withColor(Formatting.AQUA)));
             
             logger.log(Level.INFO,player.getNameForScoreboard()+" sent mail to "+to+": "+message);
          }else{
@@ -252,7 +295,7 @@ public class FabricMail implements ModInitializer {
       return -1;
    }
    
-   private static int delete(CommandContext<ServerCommandSource> context, int index){
+   private static int delete(CommandContext<ServerCommandSource> context, String mailIDStr){
       ServerCommandSource source = context.getSource();
       MinecraftServer server = source.getServer();
       if(source.isExecutedByPlayer() && server != null){
@@ -260,28 +303,76 @@ public class FabricMail implements ModInitializer {
          ServerPlayerEntity player = source.getPlayer();
          List<MailMessage> mails = mailbox.getMailsFor(player);
       
-         if(index == -1){
+         if(mailIDStr.equals("all")){
             mailbox.clearMailFor(player);
             player.sendMessage(Text.literal("All Mail Deleted").formatted(Formatting.LIGHT_PURPLE));
             return 1;
          }
          
-         if(index < 1 || index > mails.size()){
-            player.sendMessage(Text.literal("Invalid Mail Index: "+index).formatted(Formatting.RED));
+         UUID mailID = getIdOrNull(mailIDStr);
+         if(mailID == null){
+            player.sendMessage(Text.literal("Invalid Mail ID").formatted(Formatting.RED));
             return -1;
          }
-   
-         MailMessage mail = mails.get(index-1);
-         mailbox.removeMail(mail.uuid().toString());
-         player.sendMessage(Text.literal("Mail Deleted").formatted(Formatting.LIGHT_PURPLE));
-         return 1;
+         
+         MailMessage mail = mailbox.getMail(mailID.toString());
+         if(mail != null && mail.recipientId().equals(player.getUuid())){
+            mailbox.removeMail(mailID.toString());
+            player.sendMessage(Text.literal("Mail Deleted").formatted(Formatting.LIGHT_PURPLE));
+            return 1;
+         }else{
+            player.sendMessage(Text.literal("Invalid Mail ID").formatted(Formatting.RED));
+            return -1;
+         }
       }else{
          source.sendError(Text.literal("Only players can delete mail"));
       }
       return -1;
    }
    
-   private static int read(CommandContext<ServerCommandSource> context, int index){
+   private static int revoke(CommandContext<ServerCommandSource> context, String mailIDStr){
+      ServerCommandSource source = context.getSource();
+      MinecraftServer server = source.getServer();
+      if(source.isExecutedByPlayer() && server != null){
+         IMailComponent mailbox = MAILS.get(server.getOverworld());
+         ServerPlayerEntity player = source.getPlayer();
+         List<MailMessage> mails = mailbox.getMailsFrom(player);
+         
+         UUID mailID = getIdOrNull(mailIDStr);
+         if(mailID == null){
+            player.sendMessage(Text.literal("Invalid Mail ID").formatted(Formatting.RED));
+            return -1;
+         }
+         
+         for(MailMessage mail : mails){
+            if(mail.uuid().equals(mailID) && mail.senderId().equals(player.getUuid())){
+               if(!mail.parcel().isEmpty()){
+                  player.sendMessage(Text.literal("")
+                        .append(Text.literal("Revoked Mail to ").formatted(Formatting.LIGHT_PURPLE))
+                        .append(Text.literal(mail.recipient()).formatted(Formatting.AQUA))
+                        .append(Text.literal(" and returned the Parcel to your Inventory.").formatted(Formatting.LIGHT_PURPLE)));
+               }else{
+                  player.sendMessage(Text.literal("")
+                        .append(Text.literal("Revoked Mail to ").formatted(Formatting.LIGHT_PURPLE))
+                        .append(Text.literal(mail.recipient()).formatted(Formatting.AQUA))
+                        .append(Text.literal(".").formatted(Formatting.LIGHT_PURPLE)));
+               }
+               
+               givePlayerStack(player,mail.popParcel(context.getSource().getRegistryManager()));
+               mailbox.removeMail(mail.uuid().toString());
+               return 1;
+            }
+         }
+         
+         player.sendMessage(Text.literal("Invalid Mail ID").formatted(Formatting.RED));
+         return -1;
+      }else{
+         source.sendError(Text.literal("Only players can receive mail"));
+      }
+      return -1;
+   }
+   
+   private static int read(CommandContext<ServerCommandSource> context, String mailIDStr){
       ServerCommandSource source = context.getSource();
       MinecraftServer server = source.getServer();
       if(source.isExecutedByPlayer() && server != null){
@@ -289,30 +380,36 @@ public class FabricMail implements ModInitializer {
          ServerPlayerEntity player = source.getPlayer();
          List<MailMessage> mails = mailbox.getMailsFor(player);
          
-         if(index < 1 || index > mails.size()){
-            player.sendMessage(Text.literal("Invalid Mail Index: "+index).formatted(Formatting.RED));
+         UUID mailID = getIdOrNull(mailIDStr);
+         if(mailID == null){
+            player.sendMessage(Text.literal("Invalid Mail ID").formatted(Formatting.RED));
             return -1;
          }
-
-         MailMessage mail = mails.get(index-1);
-         player.sendMessage(Text.literal(""));
-         player.sendMessage(Text.literal("")
-               .append(Text.literal("From: ").formatted(Formatting.BLUE))
-               .append(Text.literal(mail.sender()+" ").formatted(Formatting.DARK_AQUA))
-               .append(Text.literal(mail.getTimeDiff(System.currentTimeMillis())).formatted(Formatting.GOLD)));
-         player.sendMessage(Text.literal(mail.message()).formatted(Formatting.AQUA));
-         player.sendMessage(Text.literal(""));
-         if(!mail.parcel().isEmpty()){
-            player.sendMessage(Text.literal("This Mail contained a Parcel. It has been added to your Inventory.").formatted(Formatting.GREEN,Formatting.ITALIC));
+         
+         MailMessage mail = mailbox.getMail(mailID.toString());
+         if(mail != null && mail.recipientId().equals(player.getUuid())){
+            player.sendMessage(Text.literal(""));
+            player.sendMessage(Text.literal("")
+                  .append(Text.literal("From: ").formatted(Formatting.BLUE))
+                  .append(Text.literal(mail.sender()+" ").formatted(Formatting.DARK_AQUA))
+                  .append(Text.literal(mail.getTimeDiff(System.currentTimeMillis())).formatted(Formatting.GOLD)));
+            player.sendMessage(Text.literal(mail.message()).formatted(Formatting.AQUA));
+            player.sendMessage(Text.literal(""));
+            if(!mail.parcel().isEmpty()){
+               player.sendMessage(Text.literal("This Mail contained a Parcel. It has been added to your Inventory.").formatted(Formatting.GREEN,Formatting.ITALIC));
+            }
+            player.sendMessage(Text.literal("[Click to remove message from your mailbox]").styled(s ->
+                  s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail delete "+mailID))
+                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to Delete Mail")))
+                        .withColor(Formatting.LIGHT_PURPLE)));
+            
+            givePlayerStack(player,mail.popParcel(context.getSource().getRegistryManager()));
+            
+            return 1;
+         }else{
+            player.sendMessage(Text.literal("Invalid Mail ID").formatted(Formatting.RED));
+            return -1;
          }
-         player.sendMessage(Text.literal("[Click to remove message from your mailbox]").styled(s ->
-                     s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail delete "+index))
-                           .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to Delete Mail")))
-                           .withColor(Formatting.LIGHT_PURPLE)));
-         
-         givePlayerStack(player,mail.popParcel(context.getSource().getRegistryManager()));
-         
-         return 1;
       }else{
          source.sendError(Text.literal("Only players can receive mail"));
       }
@@ -323,7 +420,7 @@ public class FabricMail implements ModInitializer {
       MinecraftServer server = player.getServer();
       IMailComponent mailbox = MAILS.get(server.getOverworld());
       List<MailMessage> mails = mailbox.getMailsFor(player);
-      if(mails.size() == 0) return;
+      if(mails.isEmpty()) return;
    
       player.sendMessage(Text.literal(""));
       player.sendMessage(Text.literal("")
