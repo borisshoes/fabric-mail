@@ -9,6 +9,7 @@ import net.borisshoes.fabricmail.cardinalcomponents.IMailComponent;
 import net.borisshoes.fabricmail.cardinalcomponents.MailMessage;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
@@ -24,11 +25,13 @@ import net.minecraft.text.HoverEvent;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.UserCache;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -45,11 +48,19 @@ import static net.minecraft.server.command.CommandManager.literal;
 public class FabricMail implements ModInitializer {
    
    private static final Logger logger = LogManager.getLogger("FabricMail");
+   private static final String CONFIG_NAME = "Trade.properties";
+   
+   private static ConfigUtils config;
    
    @Override
    public void onInitialize(){
    
       logger.info("Sending Fabric Mail Your Way!");
+      
+      config = new ConfigUtils(FabricLoader.getInstance().getConfigDir().resolve(CONFIG_NAME).toFile(), logger, Arrays.asList(new ConfigUtils.IConfigValue[] {
+            new ConfigUtils.IntegerConfigValue("maxSentParcels", 10, new ConfigUtils.IntegerConfigValue.IntLimits(0,1024),
+                  new ConfigUtils.Command("The maximum amount of outbound parcels is %s", "Set the maximum amount of outbound parcels to %s"))
+      }));
    
       CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, registrationEnvironment) -> {
          dispatcher.register(literal("mail")
@@ -77,12 +88,22 @@ public class FabricMail implements ModInitializer {
                            .then(argument("message",greedyString())
                                  .executes(context -> FabricMail.send(context,getString(context,"player"),getString(context,"message"),true)))))
                .then(literal("broadcast").requires(source -> source.hasPermissionLevel(2))
-                     .then(argument("message",greedyString())
-                           .executes(context -> FabricMail.broadcast(context,getString(context,"message"),false))))
+                     .then(literal("offline").then(argument("message",greedyString())
+                           .executes(context -> FabricMail.broadcast(context,getString(context,"message"),false,true,false))))
+                     .then(literal("online").then(argument("message",greedyString())
+                           .executes(context -> FabricMail.broadcast(context,getString(context,"message"),true,false,false))))
+                     .then(literal("all").then(argument("message",greedyString())
+                           .executes(context -> FabricMail.broadcast(context,getString(context,"message"),true,true,false)))))
                .then(literal("airdrop").requires(source -> source.hasPermissionLevel(2))
-                     .then(argument("message",greedyString())
-                           .executes(context -> FabricMail.broadcast(context,getString(context,"message"),true))))
+                     .then(literal("offline").then(argument("message",greedyString())
+                           .executes(context -> FabricMail.broadcast(context,getString(context,"message"),false,true,true))))
+                     .then(literal("online").then(argument("message",greedyString())
+                           .executes(context -> FabricMail.broadcast(context,getString(context,"message"),true,false,true))))
+                     .then(literal("all").then(argument("message",greedyString())
+                           .executes(context -> FabricMail.broadcast(context,getString(context,"message"),true,true,true)))))
          );
+         
+         dispatcher.register(config.generateCommand("mailconfig"));
       });
    }
    
@@ -96,7 +117,7 @@ public class FabricMail implements ModInitializer {
       return builder.buildFuture();
    }
    
-   private static int broadcast(CommandContext<ServerCommandSource> context, String message, boolean parcel){
+   private static int broadcast(CommandContext<ServerCommandSource> context, String message, boolean online, boolean offline, boolean parcel){
       ServerCommandSource source = context.getSource();
       MinecraftServer server = source.getServer();
    
@@ -126,21 +147,26 @@ public class FabricMail implements ModInitializer {
          }
       }
    
-      for(ServerPlayerEntity player : server.getPlayerManager().getPlayerList()){
-         MailMessage newMail = new MailMessage(new GameProfile(null,"System"),player.getGameProfile().getName(),player.getGameProfile().getId(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
-         newMail.checkValid(server);
-         mailbox.addMail(newMail);
-         List<MailMessage> mails = mailbox.getMailsFor(player);
-         for(int i = 0; i < mails.size(); i++){
-            MailMessage mail = mails.get(i);
-            if(mail.uuid().equals(newMail.uuid())){
-               break;
+      if(online){
+         for(ServerPlayerEntity player : server.getPlayerManager().getPlayerList()){
+            MailMessage newMail = new MailMessage(new GameProfile(UUID.fromString("291af7c7-2114-45bb-a97a-d3b4077392e8"),"System"),player.getGameProfile().getName(),player.getGameProfile().getId(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
+            newMail.checkValid(server);
+            mailbox.addMail(newMail);
+            player.sendMessage(Text.literal("You Just Received Mail!").styled(s ->
+                  s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail read "+newMail.uuid().toString()))
+                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to View Your Mail! (Mail ID: "+newMail.uuid().toString()+")")))
+                        .withColor(Formatting.LIGHT_PURPLE)));
+         }
+      }
+      if(offline){
+         for(UserCache.Entry entry : server.getUserCache().load()){
+            ServerPlayerEntity player = server.getPlayerManager().getPlayer(entry.getProfile().getId());
+            if(player == null || player.isDisconnected()){
+               MailMessage newMail = new MailMessage(new GameProfile(UUID.fromString("291af7c7-2114-45bb-a97a-d3b4077392e8"),"System"),entry.getProfile().getName(),entry.getProfile().getId(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
+               newMail.checkValid(server);
+               mailbox.addMail(newMail);
             }
          }
-         player.sendMessage(Text.literal("You Just Received Mail!").styled(s ->
-               s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail read "+newMail.uuid().toString()))
-                     .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to View Your Mail! (Mail ID: "+newMail.uuid().toString()+")")))
-                     .withColor(Formatting.LIGHT_PURPLE)));
       }
       
       source.sendMessage(Text.literal("Message Sent!").formatted(Formatting.AQUA));
@@ -249,6 +275,19 @@ public class FabricMail implements ModInitializer {
                if(element instanceof NbtCompound compound){
                   parcelTag = compound;
                }
+            }
+            
+            List<MailMessage> mails = mailbox.getMailsFrom(player);
+            int maxOutbound = (int) config.getValue("maxSentParcels");
+            int outbound = 0;
+            for(MailMessage mail : mails){
+               if(mail.parcel() != null || !mail.parcel().isEmpty()){
+                  outbound++;
+               }
+            }
+            if(outbound >= maxOutbound){
+               source.sendError(Text.literal("You have reached the maximum amount of outbound parcels!"));
+               return -1;
             }
          }
          

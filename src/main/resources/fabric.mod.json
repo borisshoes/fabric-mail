@@ -27,6 +27,7 @@
   "mixins": [
     "fabricmail.mixins.json"
   ],
+  "accessWidener" : "fabricmail.accesswidener",
   "depends": {
     "fabricloader": ">=${loader_version}",
     "fabric": "*",

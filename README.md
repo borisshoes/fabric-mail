@@ -16,8 +16,9 @@ A simple server-sided mod that gives players the ability to send messages to off
 * ```/mail revoke <mailID>``` Revokes a mail that you have sent.
 
 ### Admin Commands
-* ```/mail broadcast <message>``` Sends the specified message to all online players
-* ```/mail airdrop <message>``` Sends the specified message to all online players and includes the item stack held in the sender's hand
+* ```/mail broadcast all/online/offline <message>``` Sends the specified message to online, offline, or all players
+* ```/mail airdrop all/online/offline <message>``` Sends the specified message to online, offline, or all online players and includes the item stack held in the sender's hand
+* ```/mailconfig maxSentParcels <0-1024>``` Sets the maximum amount of outbound parcels a player can have (useful if people try to store items in their outbound mail)
 
 ### LICENSE NOTICE
 By using this project in any form, you hereby give your "express assent" for the terms of the license of this project, and acknowledge that I, BorisShoes, have fulfilled my obligation under the license to "make a reasonable effort under the circumstances to obtain the express assent of recipients to the terms of this License.
