@@ -48,7 +48,7 @@ import static net.minecraft.server.command.CommandManager.literal;
 public class FabricMail implements ModInitializer {
    
    private static final Logger logger = LogManager.getLogger("FabricMail");
-   private static final String CONFIG_NAME = "Trade.properties";
+   private static final String CONFIG_NAME = "FabricMail.properties";
    
    private static ConfigUtils config;
    
