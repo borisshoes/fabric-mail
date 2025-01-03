@@ -30,10 +30,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 import static com.mojang.brigadier.arguments.BoolArgumentType.bool;
@@ -64,6 +61,8 @@ public class FabricMail implements ModInitializer {
    
       CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, registrationEnvironment) -> {
          dispatcher.register(literal("mail")
+               .then(literal("gui")
+                     .executes(FabricMail::gui))
                .then(literal("list")
                      .executes(FabricMail::list))
                .then(literal("outbound")
@@ -108,12 +107,12 @@ public class FabricMail implements ModInitializer {
    }
    
    private CompletableFuture<Suggestions> getRecipientSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder){
-      String start = builder.getRemaining().toLowerCase();
+      String start = builder.getRemaining().toLowerCase(Locale.ROOT);
       List<String> playerNames = new ArrayList<>(context.getSource().getServer().getPlayerManager().getPlayerList().stream().map(PlayerEntity::getNameForScoreboard).toList());
       if(context.getSource().isExecutedByPlayer()){
          playerNames.removeIf(name -> name.equals(context.getSource().getPlayer().getNameForScoreboard()));
       }
-      playerNames.stream().filter(s -> s.toLowerCase().startsWith(start)).forEach(builder::suggest);
+      playerNames.stream().filter(s -> s.toLowerCase(Locale.ROOT).startsWith(start)).forEach(builder::suggest);
       return builder.buildFuture();
    }
    
@@ -138,7 +137,7 @@ public class FabricMail implements ModInitializer {
          ServerPlayerEntity player = source.getPlayer();
          ItemStack stack = player.getMainHandStack();
          if(!stack.isEmpty()){
-            NbtElement element = stack.encode(context.getSource().getRegistryManager());
+            NbtElement element = stack.toNbtAllowEmpty(context.getSource().getRegistryManager());
             if(element instanceof NbtCompound compound){
                parcelTag = compound;
                if(!player.isCreative())
@@ -175,6 +174,20 @@ public class FabricMail implements ModInitializer {
       return 1;
    }
    
+   private static int gui(CommandContext<ServerCommandSource> context){
+      ServerCommandSource source = context.getSource();
+      MinecraftServer server = source.getServer();
+      if(source.isExecutedByPlayer() && server != null){
+         MailGui mailGui = new MailGui(source.getPlayer());
+         mailGui.buildMailboxGui();
+         mailGui.open();
+         return 1;
+      }else{
+         source.sendError(Text.literal("Only players can open a mail GUI"));
+      }
+      return -1;
+   }
+   
    private static int list(CommandContext<ServerCommandSource> context){
       ServerCommandSource source = context.getSource();
       MinecraftServer server = source.getServer();
@@ -188,7 +201,7 @@ public class FabricMail implements ModInitializer {
                .append(Text.literal("You have ").formatted(Formatting.AQUA))
                .append(Text.literal(""+mails.size()).formatted(Formatting.LIGHT_PURPLE))
                .append(Text.literal(" messages (").formatted(Formatting.AQUA))
-               .append(Text.literal("Click to read").formatted(Formatting.LIGHT_PURPLE))
+               .append(Text.literal("Click to read OR type /mail gui").formatted(Formatting.LIGHT_PURPLE))
                .append(Text.literal(")").formatted(Formatting.AQUA)));
          for(int i = 0; i < mails.size(); i++){
             MailMessage mail = mails.get(i);
@@ -228,7 +241,7 @@ public class FabricMail implements ModInitializer {
                .append(Text.literal("You have ").formatted(Formatting.AQUA))
                .append(Text.literal(""+mails.size()).formatted(Formatting.LIGHT_PURPLE))
                .append(Text.literal(" outbound messages ").formatted(Formatting.AQUA))
-               .append(Text.literal("(Click to Un-send)").formatted(Formatting.LIGHT_PURPLE))
+               .append(Text.literal("(Click to Un-send OR type /mail gui)").formatted(Formatting.LIGHT_PURPLE))
                .append(Text.literal(":").formatted(Formatting.AQUA)));
          for(int i = 0; i < mails.size(); i++){
             MailMessage mail = mails.get(i);
@@ -271,7 +284,7 @@ public class FabricMail implements ModInitializer {
          if(parcel){
             stack = player.getMainHandStack();
             if(!stack.isEmpty()){
-               NbtElement element = stack.encode(context.getSource().getRegistryManager());
+               NbtElement element = stack.toNbtAllowEmpty(context.getSource().getRegistryManager());
                if(element instanceof NbtCompound compound){
                   parcelTag = compound;
                }
@@ -281,7 +294,7 @@ public class FabricMail implements ModInitializer {
             int maxOutbound = (int) config.getValue("maxSentParcels");
             int outbound = 0;
             for(MailMessage mail : mails){
-               if(mail.parcel() != null || !mail.parcel().isEmpty()){
+               if(mail.parcel() != null && !mail.parcel().isEmpty()){
                   outbound++;
                }
             }
@@ -466,7 +479,7 @@ public class FabricMail implements ModInitializer {
             .append(Text.literal("You have ").formatted(Formatting.AQUA))
             .append(Text.literal(""+mails.size()).formatted(Formatting.LIGHT_PURPLE))
             .append(Text.literal(" messages").formatted(Formatting.AQUA)));
-      player.sendMessage(Text.literal("[Click to here to view]").styled(s ->
+      player.sendMessage(Text.literal("[Click here to view OR type /mail gui]").styled(s ->
             s.withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/mail list"))
                   .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to View Your Mail!")))
                   .withColor(Formatting.LIGHT_PURPLE)));

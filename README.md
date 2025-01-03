@@ -5,6 +5,7 @@ A simple server-sided mod that gives players the ability to send messages to off
 ##### This mod should only be installed on a server.
 
 ### Player Commands
+* ```/mail gui``` Opens an interactable GUI for reading mail.
 * ```/mail list``` Lists all of a player's mail.
 * ```/mail delete all``` Clears the player's mailbox.
 * ```/mail send <player> <message>``` Sends a message to the specified player.
