@@ -177,7 +177,7 @@ public class MailGui extends SimpleGui {
       setSlot(4,modeButton);
       
       GuiElementBuilder filterBuilt = new GuiElementBuilder(Items.HOPPER).hideDefaultTooltip();
-      filterBuilt.setName(Text.literal("Filter Arcana Items").formatted(Formatting.DARK_PURPLE));
+      filterBuilt.setName(Text.literal("Filter Mail").formatted(Formatting.DARK_PURPLE));
       filterBuilt.addLoreLine(removeItalics(Text.literal("").append(Text.literal("Click").formatted(Formatting.AQUA)).append(Text.literal(" to change current filter.").formatted(Formatting.LIGHT_PURPLE))));
       filterBuilt.addLoreLine(removeItalics(Text.literal("").append(Text.literal("Right Click").formatted(Formatting.GREEN)).append(Text.literal(" to cycle filter backwards.").formatted(Formatting.LIGHT_PURPLE))));
       filterBuilt.addLoreLine(removeItalics(Text.literal("").append(Text.literal("Shift Left Click").formatted(Formatting.YELLOW)).append(Text.literal(" to reset filter.").formatted(Formatting.LIGHT_PURPLE))));
@@ -186,7 +186,7 @@ public class MailGui extends SimpleGui {
       setSlot(8,filterBuilt);
       
       GuiElementBuilder sortBuilt = new GuiElementBuilder(Items.NETHER_STAR).hideDefaultTooltip();
-      sortBuilt.setName(Text.literal("Sort Arcana Items").formatted(Formatting.DARK_PURPLE));
+      sortBuilt.setName(Text.literal("Sort Mail").formatted(Formatting.DARK_PURPLE));
       sortBuilt.addLoreLine(removeItalics(Text.literal("").append(Text.literal("Click").formatted(Formatting.AQUA)).append(Text.literal(" to change current sort type.").formatted(Formatting.LIGHT_PURPLE))));
       sortBuilt.addLoreLine(removeItalics(Text.literal("").append(Text.literal("Right Click").formatted(Formatting.GREEN)).append(Text.literal(" to cycle sort backwards.").formatted(Formatting.LIGHT_PURPLE))));
       sortBuilt.addLoreLine(removeItalics(Text.literal("").append(Text.literal("Shift Left Click").formatted(Formatting.YELLOW)).append(Text.literal(" to reset sort.").formatted(Formatting.LIGHT_PURPLE))));
