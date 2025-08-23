@@ -137,7 +137,7 @@ public class FabricMail implements ModInitializer {
          ServerPlayerEntity player = source.getPlayer();
          ItemStack stack = player.getMainHandStack();
          if(!stack.isEmpty()){
-            NbtElement element = stack.toNbtAllowEmpty(context.getSource().getRegistryManager());
+            NbtElement element = stack.toNbt(context.getSource().getRegistryManager());
             if(element instanceof NbtCompound compound){
                parcelTag = compound;
                if(!player.isCreative())
@@ -152,8 +152,8 @@ public class FabricMail implements ModInitializer {
             newMail.checkValid(server);
             mailbox.addMail(newMail);
             player.sendMessage(Text.literal("You Just Received Mail!").styled(s ->
-                  s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail read "+newMail.uuid().toString()))
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to View Your Mail! (Mail ID: "+newMail.uuid().toString()+")")))
+                  s.withClickEvent(new ClickEvent.RunCommand("/mail read "+newMail.uuid().toString()))
+                        .withHoverEvent(new HoverEvent.ShowText(Text.literal("Click to View Your Mail! (Mail ID: "+newMail.uuid().toString()+")")))
                         .withColor(Formatting.LIGHT_PURPLE)));
          }
       }
@@ -217,8 +217,8 @@ public class FabricMail implements ModInitializer {
             
             int finalI = i;
             player.sendMessage(mailText.styled(s ->
-                  s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail read "+mail.uuid().toString()))
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to Read Mail #"+(finalI+1))))));
+                  s.withClickEvent(new ClickEvent.RunCommand("/mail read "+mail.uuid().toString()))
+                        .withHoverEvent(new HoverEvent.ShowText(Text.literal("Click to Read Mail #"+(finalI+1))))));
          }
          player.sendMessage(Text.literal(""));
          return 1;
@@ -256,8 +256,8 @@ public class FabricMail implements ModInitializer {
             }
             
             player.sendMessage(mailText.styled(s ->
-                  s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail revoke "+mail.uuid().toString()))
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to Revoke this Mail")))));
+                  s.withClickEvent(new ClickEvent.RunCommand("/mail revoke "+mail.uuid().toString()))
+                        .withHoverEvent(new HoverEvent.ShowText(Text.literal("Click to Revoke this Mail")))));
          }
          player.sendMessage(Text.literal(""));
          return 1;
@@ -284,7 +284,7 @@ public class FabricMail implements ModInitializer {
          if(parcel){
             stack = player.getMainHandStack();
             if(!stack.isEmpty()){
-               NbtElement element = stack.toNbtAllowEmpty(context.getSource().getRegistryManager());
+               NbtElement element = stack.toNbt(context.getSource().getRegistryManager());
                if(element instanceof NbtCompound compound){
                   parcelTag = compound;
                }
@@ -325,14 +325,14 @@ public class FabricMail implements ModInitializer {
                   }
                }
                recipient.sendMessage(Text.literal("You Just Received Mail!").styled(s ->
-                     s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail read "+newMail.uuid().toString()))
-                           .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to View Your Mail! (Mail ID: "+newMail.uuid().toString()+")")))
+                     s.withClickEvent(new ClickEvent.RunCommand("/mail read "+newMail.uuid().toString()))
+                           .withHoverEvent(new HoverEvent.ShowText(Text.literal("Click to View Your Mail! (Mail ID: "+newMail.uuid().toString()+")")))
                            .withColor(Formatting.LIGHT_PURPLE)));
             }
             
             player.sendMessage(Text.literal("Message Sent!").styled(s ->
-                  s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail revoke "+newMail.uuid().toString()))
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to Revoke (Mail ID: "+newMail.uuid().toString()+")")))
+                  s.withClickEvent(new ClickEvent.RunCommand("/mail revoke "+newMail.uuid().toString()))
+                        .withHoverEvent(new HoverEvent.ShowText(Text.literal("Click to Revoke (Mail ID: "+newMail.uuid().toString()+")")))
                         .withColor(Formatting.AQUA)));
             
             logger.log(Level.INFO,player.getNameForScoreboard()+" sent mail to "+to+": "+message);
@@ -451,8 +451,8 @@ public class FabricMail implements ModInitializer {
                player.sendMessage(Text.literal("This Mail contained a Parcel. It has been added to your Inventory.").formatted(Formatting.GREEN,Formatting.ITALIC));
             }
             player.sendMessage(Text.literal("[Click to remove message from your mailbox]").styled(s ->
-                  s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail delete "+mailID))
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to Delete Mail")))
+                  s.withClickEvent(new ClickEvent.RunCommand("/mail delete "+mailID))
+                        .withHoverEvent(new HoverEvent.ShowText(Text.literal("Click to Delete Mail")))
                         .withColor(Formatting.LIGHT_PURPLE)));
             
             givePlayerStack(player,mail.popParcel(context.getSource().getRegistryManager()));
@@ -480,8 +480,8 @@ public class FabricMail implements ModInitializer {
             .append(Text.literal(""+mails.size()).formatted(Formatting.LIGHT_PURPLE))
             .append(Text.literal(" messages").formatted(Formatting.AQUA)));
       player.sendMessage(Text.literal("[Click here to view OR type /mail gui]").styled(s ->
-            s.withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/mail list"))
-                  .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to View Your Mail!")))
+            s.withClickEvent(new ClickEvent.SuggestCommand("/mail list"))
+                  .withHoverEvent(new HoverEvent.ShowText(Text.literal("Click to View Your Mail!")))
                   .withColor(Formatting.LIGHT_PURPLE)));
       player.sendMessage(Text.literal(""));
    }

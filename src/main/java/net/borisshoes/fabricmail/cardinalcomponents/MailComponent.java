@@ -23,18 +23,18 @@ public class MailComponent implements IMailComponent{
    public void readFromNbt(NbtCompound tag, RegistryWrapper.WrapperLookup registryLookup){
       try{
          mails.clear();
-         NbtList mailsTag = tag.getList("Mails", NbtElement.COMPOUND_TYPE);
+         NbtList mailsTag = tag.getList("Mails").orElse(new NbtList());
          for (NbtElement e : mailsTag) {
             NbtCompound mailTag = (NbtCompound) e;
-            GameProfile senderProf = new GameProfile(FabricMail.getIdOrNull(mailTag.getString("fromId")), mailTag.getString("from"));
+            GameProfile senderProf = new GameProfile(FabricMail.getIdOrNull(mailTag.getString("fromId","")), mailTag.getString("from",""));
             mails.add(new MailMessage(
                   senderProf,
-                  mailTag.getString("to"),
-                  FabricMail.getIdOrNull(mailTag.getString("toId")),
-                  mailTag.getString("message"),
-                  UUID.fromString(mailTag.getString("id")),
-                  mailTag.getLong("time"),
-                  mailTag.getCompound("parcel")));
+                  mailTag.getString("to",""),
+                  FabricMail.getIdOrNull(mailTag.getString("toId","")),
+                  mailTag.getString("message",""),
+                  UUID.fromString(mailTag.getString("id","")),
+                  mailTag.getLong("time",0L),
+                  mailTag.getCompound("parcel").orElse(new NbtCompound())));
          }
       }catch(Exception e){
          e.printStackTrace();

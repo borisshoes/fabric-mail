@@ -131,8 +131,8 @@ public class MailGui extends SimpleGui {
                   player.sendMessage(Text.literal("This Mail contained a Parcel. It has been added to your Inventory.").formatted(Formatting.GREEN,Formatting.ITALIC));
                }
                player.sendMessage(Text.literal("[Click to remove message from your mailbox]").styled(s ->
-                     s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/mail delete "+mail.uuid().toString()))
-                           .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Click to Delete Mail")))
+                     s.withClickEvent(new ClickEvent.RunCommand("/mail delete "+mail.uuid().toString()))
+                           .withHoverEvent(new HoverEvent.ShowText(Text.literal("Click to Delete Mail")))
                            .withColor(Formatting.LIGHT_PURPLE)));
                
                givePlayerStack(player,mail.popParcel(player.getRegistryManager()));
