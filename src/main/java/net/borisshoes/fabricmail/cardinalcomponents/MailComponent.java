@@ -2,38 +2,33 @@ package net.borisshoes.fabricmail.cardinalcomponents;
 
 import com.mojang.authlib.GameProfile;
 import net.borisshoes.fabricmail.FabricMail;
-import net.fabricmc.fabric.api.util.NbtType;
+import net.minecraft.inventory.StackWithSlot;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
-import net.minecraft.nbt.NbtTypes;
-import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.storage.ReadView;
+import net.minecraft.storage.WriteView;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 public class MailComponent implements IMailComponent{
    
    private final List<MailMessage> mails = new ArrayList<>();
    
    @Override
-   public void readFromNbt(NbtCompound tag, RegistryWrapper.WrapperLookup registryLookup){
+   public void readData(ReadView view){
       try{
          mails.clear();
-         NbtList mailsTag = tag.getList("Mails").orElse(new NbtList());
-         for (NbtElement e : mailsTag) {
-            NbtCompound mailTag = (NbtCompound) e;
-            GameProfile senderProf = new GameProfile(FabricMail.getIdOrNull(mailTag.getString("fromId","")), mailTag.getString("from",""));
+         for(NbtCompound mailTag : view.getTypedListView("Mails", NbtCompound.CODEC)){
+            GameProfile senderProf = new GameProfile(FabricMail.getIdOrNull(mailTag.getString("fromId", "")), mailTag.getString("from", ""));
             mails.add(new MailMessage(
                   senderProf,
-                  mailTag.getString("to",""),
-                  FabricMail.getIdOrNull(mailTag.getString("toId","")),
-                  mailTag.getString("message",""),
-                  UUID.fromString(mailTag.getString("id","")),
-                  mailTag.getLong("time",0L),
+                  mailTag.getString("to", ""),
+                  FabricMail.getIdOrNull(mailTag.getString("toId", "")),
+                  mailTag.getString("message", ""),
+                  UUID.fromString(mailTag.getString("id", "")),
+                  mailTag.getLong("time", 0L),
                   mailTag.getCompound("parcel").orElse(new NbtCompound())));
          }
       }catch(Exception e){
@@ -42,9 +37,9 @@ public class MailComponent implements IMailComponent{
    }
    
    @Override
-   public void writeToNbt(NbtCompound tag, RegistryWrapper.WrapperLookup registryLookup){
+   public void writeData(WriteView view){
       try{
-         NbtList mailsTag = new NbtList();
+         WriteView.ListAppender<NbtCompound> listAppender = view.getListAppender("Mails", NbtCompound.CODEC);
          for(MailMessage mail : mails){
             NbtCompound mailTag = new NbtCompound();
             mailTag.putString("from",mail.sender());
@@ -55,9 +50,8 @@ public class MailComponent implements IMailComponent{
             mailTag.putString("id",mail.uuid().toString());
             mailTag.putLong("time",mail.timestamp());
             mailTag.put("parcel",mail.parcel());
-            mailsTag.add(mailTag);
+            listAppender.add(mailTag);
          }
-         tag.put("Mails",mailsTag);
       }catch(Exception e){
          e.printStackTrace();
       }

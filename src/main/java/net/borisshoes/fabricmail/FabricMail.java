@@ -16,6 +16,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtOps;
+import net.minecraft.registry.RegistryOps;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -137,7 +138,7 @@ public class FabricMail implements ModInitializer {
          ServerPlayerEntity player = source.getPlayer();
          ItemStack stack = player.getMainHandStack();
          if(!stack.isEmpty()){
-            NbtElement element = stack.toNbt(context.getSource().getRegistryManager());
+            NbtElement element = ItemStack.CODEC.encodeStart(RegistryOps.of(NbtOps.INSTANCE,context.getSource().getRegistryManager()),stack).getOrThrow();
             if(element instanceof NbtCompound compound){
                parcelTag = compound;
                if(!player.isCreative())
@@ -284,7 +285,7 @@ public class FabricMail implements ModInitializer {
          if(parcel){
             stack = player.getMainHandStack();
             if(!stack.isEmpty()){
-               NbtElement element = stack.toNbt(context.getSource().getRegistryManager());
+               NbtElement element = ItemStack.CODEC.encodeStart(RegistryOps.of(NbtOps.INSTANCE,context.getSource().getRegistryManager()),stack).getOrThrow();
                if(element instanceof NbtCompound compound){
                   parcelTag = compound;
                }
