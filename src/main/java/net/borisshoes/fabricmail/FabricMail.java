@@ -26,6 +26,7 @@ import net.minecraft.text.HoverEvent;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.NameToIdCache;
 import net.minecraft.util.UserCache;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -149,7 +150,7 @@ public class FabricMail implements ModInitializer {
    
       if(online){
          for(ServerPlayerEntity player : server.getPlayerManager().getPlayerList()){
-            MailMessage newMail = new MailMessage(new GameProfile(UUID.fromString("291af7c7-2114-45bb-a97a-d3b4077392e8"),"System"),player.getGameProfile().getName(),player.getGameProfile().getId(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
+            MailMessage newMail = new MailMessage(new GameProfile(UUID.fromString("291af7c7-2114-45bb-a97a-d3b4077392e8"),"System"),player.getGameProfile().name(),player.getGameProfile().id(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
             newMail.checkValid(server);
             mailbox.addMail(newMail);
             player.sendMessage(Text.literal("You Just Received Mail!").styled(s ->
@@ -159,12 +160,17 @@ public class FabricMail implements ModInitializer {
          }
       }
       if(offline){
-         for(UserCache.Entry entry : server.getUserCache().load()){
-            ServerPlayerEntity player = server.getPlayerManager().getPlayer(entry.getProfile().getId());
-            if(player == null || player.isDisconnected()){
-               MailMessage newMail = new MailMessage(new GameProfile(UUID.fromString("291af7c7-2114-45bb-a97a-d3b4077392e8"),"System"),entry.getProfile().getName(),entry.getProfile().getId(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
-               newMail.checkValid(server);
-               mailbox.addMail(newMail);
+         NameToIdCache baseCache = server.getApiServices().nameToIdCache();
+         if(baseCache instanceof UserCache userCache){
+            List<UserCache.Entry> cacheEntries = userCache.load();
+            for(UserCache.Entry cacheEntry : cacheEntries){
+               Optional<GameProfile> opt = server.getApiServices().profileResolver().getProfileById(cacheEntry.getPlayer().id());;
+               if(opt.isEmpty()) continue;
+               if(server.getPlayerManager().getPlayer(cacheEntry.getPlayer().id()) == null){
+                  MailMessage newMail = new MailMessage(new GameProfile(UUID.fromString("291af7c7-2114-45bb-a97a-d3b4077392e8"),"System"),cacheEntry.getPlayer().name(), cacheEntry.getPlayer().id(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
+                  newMail.checkValid(server);
+                  mailbox.addMail(newMail);
+               }
             }
          }
       }
@@ -316,7 +322,7 @@ public class FabricMail implements ModInitializer {
                player.getInventory().removeOne(stack);
             
             mailbox.addMail(newMail);
-            ServerPlayerEntity recipient = player.getServer().getPlayerManager().getPlayer(to);
+            ServerPlayerEntity recipient = player.getEntityWorld().getServer().getPlayerManager().getPlayer(to);
             if(recipient != null){
                List<MailMessage> mails = mailbox.getMailsFor(recipient);
                for(int i = 0; i < mails.size(); i++){
@@ -470,7 +476,7 @@ public class FabricMail implements ModInitializer {
    }
    
    public static void informMail(ServerPlayerEntity player){
-      MinecraftServer server = player.getServer();
+      MinecraftServer server = player.getEntityWorld().getServer();
       IMailComponent mailbox = MAILS.get(server.getOverworld());
       List<MailMessage> mails = mailbox.getMailsFor(player);
       if(mails.isEmpty()) return;

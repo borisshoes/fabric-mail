@@ -6,6 +6,7 @@ import net.minecraft.inventory.StackWithSlot;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
+import net.minecraft.server.PlayerConfigEntry;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.storage.ReadView;
 import net.minecraft.storage.WriteView;
@@ -81,28 +82,25 @@ public class MailComponent implements IMailComponent{
    
    @Override
    public List<MailMessage> getMailsFor(ServerPlayerEntity player){
-      if(player.getServer() == null) return new ArrayList<>();
-      mails.removeIf(mail -> !mail.checkValid(player.getServer()));
+      mails.removeIf(mail -> !mail.checkValid(player.getEntityWorld().getServer()));
       return mails.stream().filter(mail -> {
-         GameProfile p = mail.findRecipient(player.getServer());
-         return p != null && p.getId().equals(player.getUuid());
+         PlayerConfigEntry p = mail.findRecipient(player.getEntityWorld().getServer());
+         return p != null && p.id().equals(player.getUuid());
       }).toList();
    }
    
    @Override
    public List<MailMessage> getMailsFrom(ServerPlayerEntity player){
-      if(player.getServer() == null) return new ArrayList<>();
-      mails.removeIf(mail -> !mail.checkValid(player.getServer()));
+      mails.removeIf(mail -> !mail.checkValid(player.getEntityWorld().getServer()));
       return mails.stream().filter(mail -> mail.senderId().equals(player.getUuid())).toList();
    }
    
    @Override
    public void clearMailFor(ServerPlayerEntity player){
-      if(player.getServer() == null) return;
-      mails.removeIf(mail -> !mail.checkValid(player.getServer()));
+      mails.removeIf(mail -> !mail.checkValid(player.getEntityWorld().getServer()));
       mails.removeIf(mail -> {
-         GameProfile p = mail.findRecipient(player.getServer());
-         return p != null && p.getId().equals(player.getUuid());
+         PlayerConfigEntry p = mail.findRecipient(player.getEntityWorld().getServer());
+         return p != null && p.id().equals(player.getUuid());
       });
    }
 }

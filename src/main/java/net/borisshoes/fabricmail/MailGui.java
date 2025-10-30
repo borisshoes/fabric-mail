@@ -80,7 +80,7 @@ public class MailGui extends SimpleGui {
       }else if(indexInCenter){
          int ind = (7*(index/9 - 1) + (index % 9 - 1)) + 28*(this.page-1);
          if(ind >= mailList.size()) return true;
-         IMailComponent mailbox = MAILS.get(player.getServer().getOverworld());
+         IMailComponent mailbox = MAILS.get(player.getEntityWorld().getServer().getOverworld());
          MailMessage mail = mailList.get(ind);
          boolean right = type == ClickType.MOUSE_RIGHT;
          boolean shiftLeft = type == ClickType.MOUSE_LEFT_SHIFT;
@@ -245,7 +245,7 @@ public class MailGui extends SimpleGui {
    
    
    private List<MailMessage> sortedFilteredMailList(){
-      IMailComponent mailbox = MAILS.get(player.getServer().getOverworld());
+      IMailComponent mailbox = MAILS.get(player.getEntityWorld().getServer().getOverworld());
       List<MailMessage> mails = this.outboundMode ? mailbox.getMailsFrom(player) : mailbox.getMailsFor(player);
       
       List<MailMessage> sortedFiltered = new ArrayList<>(mails.stream().filter(mail -> MailFilter.matchesFilter(this.player,this.filterType,mail)).toList());

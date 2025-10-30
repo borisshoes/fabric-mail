@@ -10,6 +10,8 @@ import net.minecraft.nbt.NbtOps;
 import net.minecraft.registry.RegistryOps;
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.PlayerConfigEntry;
+import net.minecraft.util.NameToIdCache;
 import net.minecraft.util.UserCache;
 import net.minecraft.util.Util;
 import org.jetbrains.annotations.Nullable;
@@ -34,8 +36,8 @@ public class MailMessage {
    
    
    public MailMessage(GameProfile senderProfile, String recipient, @Nullable UUID recipientId, String message, UUID uuid, long timestamp, NbtCompound parcel){
-      this.senderId = senderProfile.getId();
-      this.sender = senderProfile.getName();
+      this.senderId = senderProfile.id();
+      this.sender = senderProfile.name();
       this.recipient = recipient;
       this.recipientId = recipientId;
       this.message = message;
@@ -73,23 +75,24 @@ public class MailMessage {
    }
    
    public boolean checkValid(MinecraftServer server){
-      GameProfile profile = findRecipient(server);
+      PlayerConfigEntry profile = findRecipient(server);
       return profile != null;
    }
    
-   public GameProfile findRecipient(MinecraftServer server){
-      if(server.getUserCache() == null) return null;
+   public PlayerConfigEntry findRecipient(MinecraftServer server){
+      NameToIdCache baseCache = server.getApiServices().nameToIdCache();
+      if(!(baseCache instanceof UserCache userCache)) return null;
       
       if(recipientId != null && recipient != null){
-         return new GameProfile(recipientId, recipient);
+         return new PlayerConfigEntry(recipientId, recipient);
       }else{
-         GameProfile newProfile = server.getUserCache().findByName(recipient).orElse(null);
-         if(newProfile != null){
-            if(recipientId == null && newProfile.getId() != null){
-               recipientId = newProfile.getId();
+         PlayerConfigEntry entry = userCache.findByName(recipient).orElse(null);
+         if(entry != null){
+            if(recipientId == null && entry.id() != null){
+               recipientId = entry.id();
             }
          }
-         return newProfile;
+         return entry;
       }
    }
    
