@@ -2,14 +2,12 @@ package net.borisshoes.fabricmail.cardinalcomponents;
 
 import com.mojang.authlib.GameProfile;
 import net.borisshoes.fabricmail.FabricMail;
-import net.minecraft.inventory.StackWithSlot;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtElement;
-import net.minecraft.nbt.NbtList;
-import net.minecraft.server.PlayerConfigEntry;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.storage.ReadView;
-import net.minecraft.storage.WriteView;
+import net.borisshoes.fabricmail.MailMessage;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.players.NameAndId;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 
 import java.util.*;
 
@@ -18,19 +16,19 @@ public class MailComponent implements IMailComponent{
    private final List<MailMessage> mails = new ArrayList<>();
    
    @Override
-   public void readData(ReadView view){
+   public void readData(ValueInput view){
       try{
          mails.clear();
-         for(NbtCompound mailTag : view.getTypedListView("Mails", NbtCompound.CODEC)){
-            GameProfile senderProf = new GameProfile(FabricMail.getIdOrNull(mailTag.getString("fromId", "")), mailTag.getString("from", ""));
+         for(CompoundTag mailTag : view.listOrEmpty("Mails", CompoundTag.CODEC)){
+            GameProfile senderProf = new GameProfile(FabricMail.getIdOrNull(mailTag.getStringOr("fromId", "")), mailTag.getStringOr("from", ""));
             mails.add(new MailMessage(
                   senderProf,
-                  mailTag.getString("to", ""),
-                  FabricMail.getIdOrNull(mailTag.getString("toId", "")),
-                  mailTag.getString("message", ""),
-                  UUID.fromString(mailTag.getString("id", "")),
-                  mailTag.getLong("time", 0L),
-                  mailTag.getCompound("parcel").orElse(new NbtCompound())));
+                  mailTag.getStringOr("to", ""),
+                  FabricMail.getIdOrNull(mailTag.getStringOr("toId", "")),
+                  mailTag.getStringOr("message", ""),
+                  UUID.fromString(mailTag.getStringOr("id", "")),
+                  mailTag.getLongOr("time", 0L),
+                  mailTag.getCompound("parcel").orElse(new CompoundTag())));
          }
       }catch(Exception e){
          e.printStackTrace();
@@ -38,11 +36,11 @@ public class MailComponent implements IMailComponent{
    }
    
    @Override
-   public void writeData(WriteView view){
+   public void writeData(ValueOutput view){
       try{
-         WriteView.ListAppender<NbtCompound> listAppender = view.getListAppender("Mails", NbtCompound.CODEC);
+         ValueOutput.TypedOutputList<CompoundTag> listAppender = view.list("Mails", CompoundTag.CODEC);
          for(MailMessage mail : mails){
-            NbtCompound mailTag = new NbtCompound();
+            CompoundTag mailTag = new CompoundTag();
             mailTag.putString("from",mail.sender());
             mailTag.putString("fromId", mail.senderId() == null ? "" : mail.senderId().toString());
             mailTag.putString("to",mail.recipient());
@@ -81,26 +79,26 @@ public class MailComponent implements IMailComponent{
    }
    
    @Override
-   public List<MailMessage> getMailsFor(ServerPlayerEntity player){
-      mails.removeIf(mail -> !mail.checkValid(player.getEntityWorld().getServer()));
+   public List<MailMessage> getMailsFor(ServerPlayer player){
+      mails.removeIf(mail -> !mail.checkValid(player.level().getServer()));
       return mails.stream().filter(mail -> {
-         PlayerConfigEntry p = mail.findRecipient(player.getEntityWorld().getServer());
-         return p != null && p.id().equals(player.getUuid());
+         NameAndId p = mail.findRecipient(player.level().getServer());
+         return p != null && p.id().equals(player.getUUID());
       }).toList();
    }
    
    @Override
-   public List<MailMessage> getMailsFrom(ServerPlayerEntity player){
-      mails.removeIf(mail -> !mail.checkValid(player.getEntityWorld().getServer()));
-      return mails.stream().filter(mail -> mail.senderId().equals(player.getUuid())).toList();
+   public List<MailMessage> getMailsFrom(ServerPlayer player){
+      mails.removeIf(mail -> !mail.checkValid(player.level().getServer()));
+      return mails.stream().filter(mail -> mail.senderId().equals(player.getUUID())).toList();
    }
    
    @Override
-   public void clearMailFor(ServerPlayerEntity player){
-      mails.removeIf(mail -> !mail.checkValid(player.getEntityWorld().getServer()));
+   public void clearMailFor(ServerPlayer player){
+      mails.removeIf(mail -> !mail.checkValid(player.level().getServer()));
       mails.removeIf(mail -> {
-         PlayerConfigEntry p = mail.findRecipient(player.getEntityWorld().getServer());
-         return p != null && p.id().equals(player.getUuid());
+         NameAndId p = mail.findRecipient(player.level().getServer());
+         return p != null && p.id().equals(player.getUUID());
       });
    }
 }

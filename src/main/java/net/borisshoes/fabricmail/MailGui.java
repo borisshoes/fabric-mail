@@ -2,345 +2,223 @@ package net.borisshoes.fabricmail;
 
 import eu.pb4.sgui.api.ClickType;
 import eu.pb4.sgui.api.elements.GuiElementBuilder;
-import eu.pb4.sgui.api.gui.SimpleGui;
-import net.borisshoes.fabricmail.cardinalcomponents.IMailComponent;
-import net.borisshoes.fabricmail.cardinalcomponents.MailMessage;
-import net.minecraft.item.Items;
-import net.minecraft.screen.ScreenHandlerType;
-import net.minecraft.screen.slot.SlotActionType;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.*;
-import net.minecraft.util.Formatting;
+import net.borisshoes.borislib.BorisLib;
+import net.borisshoes.borislib.datastorage.DataAccess;
+import net.borisshoes.borislib.gui.*;
+import net.borisshoes.borislib.utils.AlgoUtils;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.inventory.MenuType;
+import net.minecraft.world.item.Items;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
+import java.util.function.Predicate;
 
+import static net.borisshoes.borislib.utils.TextUtils.removeItalics;
 import static net.borisshoes.fabricmail.FabricMail.givePlayerStack;
-import static net.borisshoes.fabricmail.cardinalcomponents.WorldDataComponentInitializer.MAILS;
 
-public class MailGui extends SimpleGui {
+@SuppressWarnings("unchecked")
+public class MailGui extends PagedGui<MailMessage> {
    
-   private MailSort sortType;
-   private MailFilter filterType;
-   private int page = 1;
-   private boolean outboundMode;
-   private List<MailMessage> mailList;
+   private boolean outboundMode = false;
    
-   public MailGui(ServerPlayerEntity player){
-      super(ScreenHandlerType.GENERIC_9X6, player, false);
-      setTitle(Text.literal("Your Mail Inbox"));
-      this.outboundMode = false;
-      this.sortType = MailSort.RECENT_FIRST;
-      this.filterType = MailFilter.NONE;
+   public MailGui(ServerPlayer player){
+      super(MenuType.GENERIC_9x6, player, DataAccess.getGlobal(MailStorage.KEY).getMailsForOrFrom(player));
+      
+      MailFilter.setData(this.outboundMode,player.getUUID());
+      
+      itemElemBuilder((mail) -> {
+         boolean hasParcel = !mail.parcel().isEmpty();
+         GuiElementBuilder mailItem = new GuiElementBuilder(hasParcel ? Items.CHEST : Items.PAPER).hideDefaultTooltip();
+         
+         if(this.outboundMode){
+            mailItem.setName(Component.translatable("gui.fabricmail.mail_to",
+                  Component.literal(mail.recipient()).withStyle(ChatFormatting.DARK_AQUA, ChatFormatting.BOLD)).withStyle(ChatFormatting.BLUE));
+            mailItem.addLoreLine(mail.getTimeDiff(System.currentTimeMillis()).withStyle(ChatFormatting.GOLD));
+            if(!mail.parcel().isEmpty()){
+               mailItem.addLoreLine(Component.translatable("gui.fabricmail.contains_parcel_gui").withStyle(ChatFormatting.GREEN));
+            }
+            mailItem.addLoreLine(Component.literal(""));
+            mailItem.addLoreLine(Component.translatable("gui.fabricmail.click_revoke",
+                  Component.translatable("gui.borislib.click").withStyle(ChatFormatting.AQUA)).withStyle(ChatFormatting.RED));
+         }else{
+            mailItem.setName(Component.translatable("gui.fabricmail.mail_from",
+                  Component.literal(mail.sender()).withStyle(ChatFormatting.DARK_AQUA, ChatFormatting.BOLD)).withStyle(ChatFormatting.BLUE));
+            mailItem.addLoreLine(mail.getTimeDiff(System.currentTimeMillis()).withStyle(ChatFormatting.GOLD));
+            if(!mail.parcel().isEmpty()){
+               mailItem.addLoreLine(Component.translatable("gui.fabricmail.contains_parcel_gui").withStyle(ChatFormatting.GREEN));
+            }
+            mailItem.addLoreLine(Component.literal(""));
+            mailItem.addLoreLine(Component.translatable("gui.fabricmail.click_read",
+                  Component.translatable("gui.borislib.click").withStyle(ChatFormatting.AQUA)).withStyle(ChatFormatting.LIGHT_PURPLE));
+            mailItem.addLoreLine(Component.translatable("gui.fabricmail.shift_click_read_delete",
+                  Component.translatable("gui.borislib.shift_click").withStyle(ChatFormatting.GREEN)).withStyle(ChatFormatting.GOLD));
+            mailItem.addLoreLine(Component.translatable("gui.fabricmail.right_click_delete",
+                  Component.translatable("gui.borislib.right_click").withStyle(ChatFormatting.YELLOW)).withStyle(ChatFormatting.RED));
+         }
+         return mailItem;
+      });
+      
+      blankItem(GuiElementBuilder.from(GraphicalItem.withColor(GraphicalItem.PAGE_BG, 0xffca90)));
+      
+      elemClickFunction((mail, index, clickType) -> {
+         MailStorage mailbox = DataAccess.getGlobal(MailStorage.KEY);
+         if(outboundMode){
+            if(!mail.parcel().isEmpty()){
+               player.sendSystemMessage(Component.translatable("text.fabricmail.revoked_mail_to_parcel",
+                     Component.literal(mail.recipient()).withStyle(ChatFormatting.AQUA)).withStyle(ChatFormatting.LIGHT_PURPLE));
+            }else{
+               player.sendSystemMessage(Component.translatable("text.fabricmail.revoked_mail_to",
+                     Component.literal(mail.recipient()).withStyle(ChatFormatting.AQUA)).withStyle(ChatFormatting.LIGHT_PURPLE));
+            }
+            
+            givePlayerStack(player,mail.popParcel(player.registryAccess()));
+            mailbox.removeMail(mail.uuid().toString());
+         }else{
+            if(clickType == ClickType.MOUSE_RIGHT){
+               mailbox.removeMail(mail.uuid().toString());
+               player.sendSystemMessage(Component.translatable("gui.fabricmail.deleted_mail", mail.uuid().toString()).withStyle(ChatFormatting.LIGHT_PURPLE));
+            }else if(clickType == ClickType.MOUSE_LEFT_SHIFT){
+               player.sendSystemMessage(Component.literal(""));
+               player.sendSystemMessage(Component.translatable("text.fabricmail.mail_from_header",
+                     Component.literal(mail.sender()).withStyle(ChatFormatting.DARK_AQUA),
+                     mail.getTimeDiff(System.currentTimeMillis()).withStyle(ChatFormatting.GOLD)).withStyle(ChatFormatting.BLUE));
+               player.sendSystemMessage(Component.literal(mail.message()).withStyle(ChatFormatting.AQUA));
+               player.sendSystemMessage(Component.literal(""));
+               if(!mail.parcel().isEmpty()){
+                  player.sendSystemMessage(Component.translatable("text.fabricmail.parcel_added_inventory").withStyle(ChatFormatting.GREEN, ChatFormatting.ITALIC));
+               }
+               
+               givePlayerStack(player,mail.popParcel(player.registryAccess()));
+               mailbox.removeMail(mail.uuid().toString());
+               player.sendSystemMessage(Component.translatable("gui.fabricmail.deleted_mail", mail.uuid().toString()).withStyle(ChatFormatting.LIGHT_PURPLE));
+            }else{
+               player.sendSystemMessage(Component.literal(""));
+               player.sendSystemMessage(Component.translatable("text.fabricmail.mail_from_header",
+                     Component.literal(mail.sender()).withStyle(ChatFormatting.DARK_AQUA),
+                     mail.getTimeDiff(System.currentTimeMillis()).withStyle(ChatFormatting.GOLD)).withStyle(ChatFormatting.BLUE));
+               player.sendSystemMessage(Component.literal(mail.message()).withStyle(ChatFormatting.AQUA));
+               player.sendSystemMessage(Component.literal(""));
+               if(!mail.parcel().isEmpty()){
+                  player.sendSystemMessage(Component.translatable("text.fabricmail.parcel_added_inventory").withStyle(ChatFormatting.GREEN, ChatFormatting.ITALIC));
+               }
+               player.sendSystemMessage(Component.translatable("text.fabricmail.click_remove_message").withStyle(s ->
+                     s.withClickEvent(new ClickEvent.RunCommand("/mail delete "+mail.uuid().toString()))
+                           .withHoverEvent(new HoverEvent.ShowText(Component.translatable("text.fabricmail.click_delete_mail")))
+                           .withColor(ChatFormatting.LIGHT_PURPLE)));
+               
+               givePlayerStack(player,mail.popParcel(player.registryAccess()));
+            }
+         }
+         buildPage();
+      });
+      
+      curSort(MailSort.RECENT_FIRST);
+      curFilter(MailFilter.NONE);
    }
    
    @Override
-   public boolean onAnyClick(int index, ClickType type, SlotActionType action){
-      boolean indexInCenter = index > 9 && index < 45 && index % 9 != 0 && index % 9 != 8;
+   public boolean onAnyClick(int index, ClickType type, net.minecraft.world.inventory.ClickType action){
       if(index == 4){
          this.outboundMode = !this.outboundMode;
-         buildMailboxGui();
-      }else if(index == 0){
-         boolean backwards = type == ClickType.MOUSE_RIGHT;
-         boolean shiftLeft = type == ClickType.MOUSE_LEFT_SHIFT;
-         if(shiftLeft){
-            this.sortType = MailSort.RECENT_FIRST;
-         }else{
-            this.sortType = MailSort.cycleSort(this.sortType,backwards);
-         }
-         
-         buildMailboxGui();
-      }else if(index == 8){
-         boolean backwards = type == ClickType.MOUSE_RIGHT;
-         boolean shiftLeft = type == ClickType.MOUSE_LEFT_SHIFT;
-         if(shiftLeft){
-            this.filterType = MailFilter.NONE;
-         }else{
-            this.filterType = MailFilter.cycleFilter(this.filterType,backwards);
-         }
-         this.mailList = sortedFilteredMailList();
-         
-         int numPages = (int) Math.ceil((float)mailList.size()/28.0);
-         if(this.page > numPages){
-            this.page = Math.max(1,numPages);
-         }
-         buildMailboxGui();
-      }else if(index == 45){
-         if(this.page > 1){
-            this.page--;
-            buildMailboxGui();
-         }
-      }else if(index == 53){
-         int numPages = (int) Math.ceil((float)mailList.size()/28.0);
-         if(this.page < numPages){
-            this.page++;
-            buildMailboxGui();
-         }
-      }else if(indexInCenter){
-         int ind = (7*(index/9 - 1) + (index % 9 - 1)) + 28*(this.page-1);
-         if(ind >= mailList.size()) return true;
-         IMailComponent mailbox = MAILS.get(player.getEntityWorld().getServer().getOverworld());
-         MailMessage mail = mailList.get(ind);
-         boolean right = type == ClickType.MOUSE_RIGHT;
-         boolean shiftLeft = type == ClickType.MOUSE_LEFT_SHIFT;
-         
-         if(outboundMode){
-            if(!mail.parcel().isEmpty()){
-               player.sendMessage(Text.literal("")
-                     .append(Text.literal("Revoked Mail to ").formatted(Formatting.LIGHT_PURPLE))
-                     .append(Text.literal(mail.recipient()).formatted(Formatting.AQUA))
-                     .append(Text.literal(" and returned the Parcel to your Inventory.").formatted(Formatting.LIGHT_PURPLE)));
-            }else{
-               player.sendMessage(Text.literal("")
-                     .append(Text.literal("Revoked Mail to ").formatted(Formatting.LIGHT_PURPLE))
-                     .append(Text.literal(mail.recipient()).formatted(Formatting.AQUA))
-                     .append(Text.literal(".").formatted(Formatting.LIGHT_PURPLE)));
-            }
-            
-            givePlayerStack(player,mail.popParcel(player.getRegistryManager()));
-            mailbox.removeMail(mail.uuid().toString());
-         }else{
-            if(right){
-               mailbox.removeMail(mail.uuid().toString());
-               player.sendMessage(Text.literal("Deleted Mail "+mail.uuid().toString()).formatted(Formatting.LIGHT_PURPLE));
-            }else if(shiftLeft){
-               player.sendMessage(Text.literal(""));
-               player.sendMessage(Text.literal("")
-                     .append(Text.literal("From: ").formatted(Formatting.BLUE))
-                     .append(Text.literal(mail.sender()+" ").formatted(Formatting.DARK_AQUA))
-                     .append(Text.literal(mail.getTimeDiff(System.currentTimeMillis())).formatted(Formatting.GOLD)));
-               player.sendMessage(Text.literal(mail.message()).formatted(Formatting.AQUA));
-               player.sendMessage(Text.literal(""));
-               if(!mail.parcel().isEmpty()){
-                  player.sendMessage(Text.literal("This Mail contained a Parcel. It has been added to your Inventory.").formatted(Formatting.GREEN,Formatting.ITALIC));
-               }
-               
-               givePlayerStack(player,mail.popParcel(player.getRegistryManager()));
-               mailbox.removeMail(mail.uuid().toString());
-               player.sendMessage(Text.literal("Deleted Mail "+mail.uuid().toString()).formatted(Formatting.LIGHT_PURPLE));
-            }else{
-               player.sendMessage(Text.literal(""));
-               player.sendMessage(Text.literal("")
-                     .append(Text.literal("From: ").formatted(Formatting.BLUE))
-                     .append(Text.literal(mail.sender()+" ").formatted(Formatting.DARK_AQUA))
-                     .append(Text.literal(mail.getTimeDiff(System.currentTimeMillis())).formatted(Formatting.GOLD)));
-               player.sendMessage(Text.literal(mail.message()).formatted(Formatting.AQUA));
-               player.sendMessage(Text.literal(""));
-               if(!mail.parcel().isEmpty()){
-                  player.sendMessage(Text.literal("This Mail contained a Parcel. It has been added to your Inventory.").formatted(Formatting.GREEN,Formatting.ITALIC));
-               }
-               player.sendMessage(Text.literal("[Click to remove message from your mailbox]").styled(s ->
-                     s.withClickEvent(new ClickEvent.RunCommand("/mail delete "+mail.uuid().toString()))
-                           .withHoverEvent(new HoverEvent.ShowText(Text.literal("Click to Delete Mail")))
-                           .withColor(Formatting.LIGHT_PURPLE)));
-               
-               givePlayerStack(player,mail.popParcel(player.getRegistryManager()));
-            }
-         }
-         buildMailboxGui();
+         this.buildPage();
       }
-      return true;
+      return super.onAnyClick(index, type, action);
    }
    
-   public void buildMailboxGui(){
-      this.mailList = sortedFilteredMailList();
+   @Override
+   public void buildPage(){
+      items(DataAccess.getGlobal(MailStorage.KEY).getMailsForOrFrom(player));
+      MailFilter.setData(this.outboundMode,player.getUUID());
+      GuiHelper.outlineGUI(this, 0x1F44DD, Component.literal(""));
       
       if(this.outboundMode){
-         setTitle(Text.literal("Your Mail Outbox"));
+         setTitle(Component.translatable("gui.fabricmail.outbox_title"));
       }else{
-         setTitle(Text.literal("Your Mail Inbox"));
+         setTitle(Component.translatable("gui.fabricmail.inbox_title"));
       }
       
-      int numPages = (int) Math.ceil((float)this.mailList.size()/28.0);
-      
-      for(int i = 0; i < getSize(); i++){
-         GuiElementBuilder pane = new GuiElementBuilder(Items.BLUE_STAINED_GLASS_PANE).hideTooltip();
-         setSlot(i,pane);
-      }
-      
-      GuiElementBuilder nextArrow = new GuiElementBuilder(Items.SPECTRAL_ARROW).hideDefaultTooltip();
-      nextArrow.setName((Text.literal("").append(Text.literal("Next Page").formatted(Formatting.GOLD))));
-      nextArrow.addLoreLine(removeItalics((Text.literal("").append(Text.literal("("+page+" of "+numPages+")").formatted(Formatting.DARK_PURPLE)))));
-      setSlot(53,nextArrow);
-      
-      GuiElementBuilder prevArrow = new GuiElementBuilder(Items.SPECTRAL_ARROW).hideDefaultTooltip();
-      prevArrow.setName((Text.literal("").append(Text.literal("Prev Page").formatted(Formatting.GOLD))));
-      prevArrow.addLoreLine(removeItalics((Text.literal("").append(Text.literal("("+page+" of "+numPages+")").formatted(Formatting.DARK_PURPLE)))));
-      setSlot(45,prevArrow);
-      
+      ;
       GuiElementBuilder modeButton = new GuiElementBuilder(this.outboundMode ? Items.WRITABLE_BOOK : Items.WRITTEN_BOOK).hideDefaultTooltip();
-      modeButton.setName((Text.literal("").append(Text.literal(this.outboundMode ? "Outbox Mode" : "Inbox Mode").formatted(Formatting.AQUA))));
-      modeButton.addLoreLine(removeItalics(Text.literal(this.outboundMode ? "Showing you your outbound mails" : "Showing you your inbound mails").formatted(Formatting.DARK_PURPLE)));
-      modeButton.addLoreLine(removeItalics(Text.literal("")));
-      modeButton.addLoreLine(removeItalics(Text.literal("").append(Text.literal("Click").formatted(Formatting.AQUA)).append(Text.literal(" to toggle the mailbox mode").formatted(Formatting.LIGHT_PURPLE))));
+      modeButton.setName(Component.translatable(this.outboundMode ? "gui.fabricmail.outbox_mode" : "gui.fabricmail.inbox_mode").withStyle(ChatFormatting.AQUA));
+      modeButton.addLoreLine(Component.translatable(this.outboundMode ? "gui.fabricmail.showing_outbound" : "gui.fabricmail.showing_inbound").withStyle(ChatFormatting.DARK_PURPLE));
+      modeButton.addLoreLine(Component.literal(""));
+      modeButton.addLoreLine(Component.translatable("gui.fabricmail.toggle_mailbox_mode",
+            Component.translatable("gui.borislib.click").withStyle(ChatFormatting.AQUA)
+      ).withStyle(ChatFormatting.LIGHT_PURPLE));
       setSlot(4,modeButton);
       
-      GuiElementBuilder filterBuilt = new GuiElementBuilder(Items.HOPPER).hideDefaultTooltip();
-      filterBuilt.setName(Text.literal("Filter Mail").formatted(Formatting.DARK_PURPLE));
-      filterBuilt.addLoreLine(removeItalics(Text.literal("").append(Text.literal("Click").formatted(Formatting.AQUA)).append(Text.literal(" to change current filter.").formatted(Formatting.LIGHT_PURPLE))));
-      filterBuilt.addLoreLine(removeItalics(Text.literal("").append(Text.literal("Right Click").formatted(Formatting.GREEN)).append(Text.literal(" to cycle filter backwards.").formatted(Formatting.LIGHT_PURPLE))));
-      filterBuilt.addLoreLine(removeItalics(Text.literal("").append(Text.literal("Shift Left Click").formatted(Formatting.YELLOW)).append(Text.literal(" to reset filter.").formatted(Formatting.LIGHT_PURPLE))));
-      filterBuilt.addLoreLine(removeItalics(Text.literal("")));
-      filterBuilt.addLoreLine(removeItalics(Text.literal("").append(Text.literal("Current Filter: ").formatted(Formatting.AQUA)).append(MailFilter.getColoredLabel(this.filterType))));
-      setSlot(8,filterBuilt);
+      super.buildPage();
+   }
+   
+   @Override
+   public List<MailMessage> getFilteredSortedList(){
+      return super.getFilteredSortedList().stream().filter(mail -> this.outboundMode == (mail.senderId().equals(player.getUUID()))).toList();
+   }
+   
+   private static class MailSort extends GuiSort<MailMessage> {
+      public static final List<MailSort> SORTS = new ArrayList<>();
       
-      GuiElementBuilder sortBuilt = new GuiElementBuilder(Items.NETHER_STAR).hideDefaultTooltip();
-      sortBuilt.setName(Text.literal("Sort Mail").formatted(Formatting.DARK_PURPLE));
-      sortBuilt.addLoreLine(removeItalics(Text.literal("").append(Text.literal("Click").formatted(Formatting.AQUA)).append(Text.literal(" to change current sort type.").formatted(Formatting.LIGHT_PURPLE))));
-      sortBuilt.addLoreLine(removeItalics(Text.literal("").append(Text.literal("Right Click").formatted(Formatting.GREEN)).append(Text.literal(" to cycle sort backwards.").formatted(Formatting.LIGHT_PURPLE))));
-      sortBuilt.addLoreLine(removeItalics(Text.literal("").append(Text.literal("Shift Left Click").formatted(Formatting.YELLOW)).append(Text.literal(" to reset sort.").formatted(Formatting.LIGHT_PURPLE))));
-      sortBuilt.addLoreLine(removeItalics(Text.literal("")));
-      sortBuilt.addLoreLine(removeItalics(Text.literal("").append(Text.literal("Sorting By: ").formatted(Formatting.AQUA)).append(MailSort.getColoredLabel(this.sortType))));
-      setSlot(0,sortBuilt);
+      public static final MailSort RECENT_LAST = new MailSort("gui.fabricmail.recent_last", ChatFormatting.AQUA.getColor().intValue(),
+            Comparator.comparingLong(MailMessage::timestamp));
+      public static final MailSort RECENT_FIRST = new MailSort("gui.fabricmail.recent_first", ChatFormatting.GREEN.getColor().intValue(),
+            Comparator.comparingLong(mail -> -mail.timestamp()));
       
+      private MailSort(String key, int color, Comparator<MailMessage> comparator){
+         super(key, color, comparator);
+         SORTS.add(this);
+      }
       
-      int k = (page-1)*28;
-      for(int i = 0; i < 4; i++){
-         for(int j = 0; j < 7; j++){
-            if(k < this.mailList.size() && k >= 0){
-               MailMessage mail = this.mailList.get(k);
-               boolean hasParcel = !mail.parcel().isEmpty();
-               GuiElementBuilder mailItem = new GuiElementBuilder(hasParcel ? Items.CHEST : Items.PAPER).hideDefaultTooltip();
-               
-               if(this.outboundMode){
-                  mailItem.setName((Text.literal("")
-                        .append(Text.literal("Mail to: ").formatted(Formatting.BLUE))
-                        .append(Text.literal(mail.recipient()).formatted(Formatting.DARK_AQUA,Formatting.BOLD))));
-                  mailItem.addLoreLine(removeItalics(Text.literal(mail.getTimeDiff(System.currentTimeMillis())).formatted(Formatting.GOLD)));
-                  if(!mail.parcel().isEmpty()){
-                     mailItem.addLoreLine(removeItalics(Text.literal("< Contains Parcel >").formatted(Formatting.GREEN)));
-                  }
-                  mailItem.addLoreLine(removeItalics(Text.literal("")));
-                  mailItem.addLoreLine(removeItalics((Text.literal("")
-                        .append(Text.literal("Click").formatted(Formatting.AQUA))
-                        .append(Text.literal(" to REVOKE this mail").formatted(Formatting.RED)))));
-               }else{
-                  mailItem.setName((Text.literal("")
-                        .append(Text.literal("Mail from: ").formatted(Formatting.BLUE))
-                        .append(Text.literal(mail.sender()).formatted(Formatting.DARK_AQUA,Formatting.BOLD))));
-                  mailItem.addLoreLine(removeItalics(Text.literal(mail.getTimeDiff(System.currentTimeMillis())).formatted(Formatting.GOLD)));
-                  if(!mail.parcel().isEmpty()){
-                     mailItem.addLoreLine(removeItalics(Text.literal("< Contains Parcel >").formatted(Formatting.GREEN)));
-                  }
-                  mailItem.addLoreLine(removeItalics(Text.literal("")));
-                  mailItem.addLoreLine(removeItalics((Text.literal("")
-                        .append(Text.literal("Click").formatted(Formatting.AQUA))
-                        .append(Text.literal(" to READ this mail").formatted(Formatting.LIGHT_PURPLE)))));
-                  mailItem.addLoreLine(removeItalics((Text.literal("")
-                        .append(Text.literal("Shift Click").formatted(Formatting.GREEN))
-                        .append(Text.literal(" to READ AND DELETE this mail").formatted(Formatting.GOLD)))));
-                  mailItem.addLoreLine(removeItalics((Text.literal("")
-                        .append(Text.literal("Right Click").formatted(Formatting.YELLOW))
-                        .append(Text.literal(" to DELETE this mail").formatted(Formatting.RED)))));
-               }
-               setSlot((i*9+10)+j,mailItem);
-            }else{
-               setSlot((i*9+10)+j,new GuiElementBuilder(Items.AIR));
-            }
-            k++;
-         }
+      @Override
+      protected List<MailSort> getList(){
+         return SORTS;
+      }
+      
+      public MailSort getStaticDefault(){
+         return RECENT_FIRST;
       }
    }
    
-   
-   private List<MailMessage> sortedFilteredMailList(){
-      IMailComponent mailbox = MAILS.get(player.getEntityWorld().getServer().getOverworld());
-      List<MailMessage> mails = this.outboundMode ? mailbox.getMailsFrom(player) : mailbox.getMailsFor(player);
+   private static class MailFilter extends GuiFilter<MailMessage> {
+      public static final List<MailFilter> FILTERS = new ArrayList<>();
+      private static boolean outbound = false;
+      private static UUID player = AlgoUtils.getUUID(BorisLib.BLANK_UUID);
       
-      List<MailMessage> sortedFiltered = new ArrayList<>(mails.stream().filter(mail -> MailFilter.matchesFilter(this.player,this.filterType,mail)).toList());
+      public static final MailFilter NONE = new MailFilter("gui.borislib.none", ChatFormatting.WHITE.getColor().intValue(), entry -> isOutbound() == (entry.senderId().equals(getPlayer())));
+      public static final MailFilter HAS_PARCEL = new MailFilter("gui.fabricmail.has_parcel", ChatFormatting.GREEN.getColor().intValue(), entry -> !entry.parcel().isEmpty() && isOutbound() == (entry.senderId().equals(getPlayer())));
+      public static final MailFilter NO_PARCEL = new MailFilter("gui.fabricmail.no_parcel", ChatFormatting.RED.getColor().intValue(), entry -> entry.parcel().isEmpty() && isOutbound() == (entry.senderId().equals(getPlayer())));
       
-      switch(this.sortType){
-         case RECENT_LAST -> {
-            sortedFiltered.sort(Comparator.comparingLong(MailMessage::timestamp));
-         }
-         case null, default -> {
-            sortedFiltered.sort(Comparator.comparingLong(mail -> -mail.timestamp()));
-         }
-      }
-      return sortedFiltered;
-   }
-   
-   public enum MailSort{
-      RECENT_FIRST("Recent First"),
-      RECENT_LAST("Recent Last");
-      
-      public final String label;
-      
-      MailSort(String label){
-         this.label = label;
+      private MailFilter(String key, int color, Predicate<MailMessage> predicate){
+         super(key, color, predicate);
+         FILTERS.add(this);
       }
       
-      public static Text getColoredLabel(MailSort sort){
-         MutableText text = Text.literal(sort.label);
-         
-         return switch(sort){
-            case RECENT_FIRST -> text.formatted(Formatting.AQUA);
-            case RECENT_LAST -> text.formatted(Formatting.GREEN);
-         };
+      @Override
+      protected List<MailFilter> getList(){
+         return FILTERS;
       }
       
-      public static MailSort cycleSort(MailSort sort, boolean backwards){
-         MailSort[] sorts = MailSort.values();
-         int ind = -1;
-         for(int i = 0; i < sorts.length; i++){
-            if(sort == sorts[i]){
-               ind = i;
-            }
-         }
-         ind += backwards ? -1 : 1;
-         if(ind >= sorts.length) ind = 0;
-         if(ind < 0) ind = sorts.length-1;
-         return sorts[ind];
-      }
-   }
-   
-   public enum MailFilter{
-      NONE("None"),
-      HAS_PARCEL("Has Parcel"),
-      NO_PARCEL("No Parcel");
-      
-      public final String label;
-      
-      MailFilter(String label){
-         this.label = label;
+      public MailFilter getStaticDefault(){
+         return NONE;
       }
       
-      public static Text getColoredLabel(MailFilter filter){
-         MutableText text = Text.literal(filter.label);
-         
-         return switch(filter){
-            case NONE -> text.formatted(Formatting.WHITE);
-            case HAS_PARCEL -> text.formatted(Formatting.GREEN);
-            case NO_PARCEL -> text.formatted(Formatting.RED);
-         };
+      public static boolean isOutbound(){
+         return outbound;
       }
       
-      public static MailFilter cycleFilter(MailFilter filter, boolean backwards){
-         MailFilter[] filters = MailFilter.values();
-         int ind = -1;
-         for(int i = 0; i < filters.length; i++){
-            if(filter == filters[i]){
-               ind = i;
-            }
-         }
-         ind += backwards ? -1 : 1;
-         if(ind >= filters.length) ind = 0;
-         if(ind < 0) ind = filters.length-1;
-         return filters[ind];
+      public static UUID getPlayer(){
+         return player;
       }
       
-      public static boolean matchesFilter(ServerPlayerEntity player, MailFilter filter, MailMessage mail){
-         if(filter == MailFilter.NONE) return true;
-         boolean hasParcel = !mail.parcel().isEmpty();
-         if(filter == MailFilter.HAS_PARCEL) return hasParcel;
-         if(filter == MailFilter.NO_PARCEL) return !hasParcel;
-         return false;
+      public static void setData(boolean outbound, UUID uuid){
+         MailFilter.outbound = outbound;
+         MailFilter.player = uuid;
       }
-   }
-   
-   private static MutableText removeItalics(MutableText text){
-      Style parentStyle = Style.EMPTY.withColor(Formatting.DARK_PURPLE).withItalic(false).withBold(false).withUnderline(false).withObfuscated(false).withStrikethrough(false);
-      return text.setStyle(text.getStyle().withParent(parentStyle));
    }
 }
