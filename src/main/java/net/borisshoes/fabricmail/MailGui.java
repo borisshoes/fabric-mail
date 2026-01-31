@@ -33,7 +33,7 @@ public class MailGui extends PagedGui<MailMessage> {
       
       MailFilter.setData(this.outboundMode,player.getUUID());
       
-      itemElemBuilder((mail) -> {
+      itemElemBuilder((mail, i) -> {
          boolean hasParcel = !mail.parcel().isEmpty();
          GuiElementBuilder mailItem = new GuiElementBuilder(hasParcel ? Items.CHEST : Items.PAPER).hideDefaultTooltip();
          
