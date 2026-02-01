@@ -41,13 +41,10 @@ public class MailMessage {
          CodecUtils.UUID_CODEC.fieldOf("uuid").forGetter(MailMessage::uuid),
          Codec.LONG.fieldOf("timestamp").forGetter(MailMessage::timestamp),
          CompoundTag.CODEC.optionalFieldOf("parcel", new CompoundTag()).forGetter(MailMessage::parcel)
-   ).apply(i, (senderName, senderId, recipientName, recipientIdOpt, message, uuid, timestamp, parcel) -> {
-      GameProfile senderProfile = new GameProfile(senderId, senderName);
-      @Nullable UUID recipientId = recipientIdOpt.orElse(null);
-      return new MailMessage(senderProfile, recipientName, recipientId, message, uuid, timestamp, parcel);
-   }));
+   ).apply(i, (senderName, senderId, recipientName, recipientIdOpt, message, uuid, timestamp, parcel) ->
+         new MailMessage(new NameAndId(senderId, senderName), recipientName, recipientIdOpt.orElse(null), message, uuid, timestamp, parcel)));
    
-   public MailMessage(GameProfile senderProfile, String recipient, @Nullable UUID recipientId, String message, UUID uuid, long timestamp, CompoundTag parcel){
+   public MailMessage(NameAndId senderProfile, String recipient, @Nullable UUID recipientId, String message, UUID uuid, long timestamp, CompoundTag parcel){
       this.senderId = senderProfile.id();
       this.sender = senderProfile.name();
       this.recipient = recipient;

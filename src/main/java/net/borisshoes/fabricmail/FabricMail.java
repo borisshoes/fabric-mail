@@ -21,6 +21,7 @@ import net.minecraft.core.MappedRegistry;
 import net.minecraft.core.Registry;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.players.NameAndId;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -162,7 +163,7 @@ public class FabricMail implements ModInitializer {
    
       if(online){
          for(ServerPlayer player : server.getPlayerList().getPlayers()){
-            MailMessage newMail = new MailMessage(new GameProfile(UUID.fromString("291af7c7-2114-45bb-a97a-d3b4077392e8"),"System"),player.getGameProfile().name(),player.getGameProfile().id(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
+            MailMessage newMail = new MailMessage(new NameAndId(UUID.fromString("291af7c7-2114-45bb-a97a-d3b4077392e8"),"System"),player.getGameProfile().name(),player.getGameProfile().id(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
             newMail.checkValid(server);
             mailbox.addMail(newMail);
             player.sendSystemMessage(Component.translatable("text.fabricmail.received_mail").withStyle(s ->
@@ -179,7 +180,7 @@ public class FabricMail implements ModInitializer {
                Optional<GameProfile> opt = server.services().profileResolver().fetchById(cacheEntry.nameAndId().id());;
                if(opt.isEmpty()) continue;
                if(server.getPlayerList().getPlayer(cacheEntry.nameAndId().id()) == null){
-                  MailMessage newMail = new MailMessage(new GameProfile(UUID.fromString("291af7c7-2114-45bb-a97a-d3b4077392e8"),"System"),cacheEntry.nameAndId().name(), cacheEntry.nameAndId().id(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
+                  MailMessage newMail = new MailMessage(new NameAndId(UUID.fromString("291af7c7-2114-45bb-a97a-d3b4077392e8"),"System"),cacheEntry.nameAndId().name(), cacheEntry.nameAndId().id(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
                   newMail.checkValid(server);
                   mailbox.addMail(newMail);
                }
@@ -315,7 +316,7 @@ public class FabricMail implements ModInitializer {
          
          ServerPlayer onlineTo = server.getPlayerList().getPlayerByName(to);
          
-         MailMessage newMail = new MailMessage(player.getGameProfile(),to,onlineTo == null ? null : onlineTo.getUUID(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
+         MailMessage newMail = new MailMessage(new NameAndId(player.getGameProfile()),to,onlineTo == null ? null : onlineTo.getUUID(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
          if(newMail.sender().equals(newMail.recipient())){
             source.sendFailure(Component.translatable("text.fabricmail.cannot_mail_self"));
             return -1;

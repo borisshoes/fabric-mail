@@ -1,6 +1,7 @@
 package net.borisshoes.fabricmail.cardinalcomponents;
 
 import com.mojang.authlib.GameProfile;
+import net.borisshoes.borislib.utils.AlgoUtils;
 import net.borisshoes.fabricmail.FabricMail;
 import net.borisshoes.fabricmail.MailMessage;
 import net.minecraft.nbt.CompoundTag;
@@ -20,9 +21,8 @@ public class MailComponent implements IMailComponent{
       try{
          mails.clear();
          for(CompoundTag mailTag : view.listOrEmpty("Mails", CompoundTag.CODEC)){
-            GameProfile senderProf = new GameProfile(FabricMail.getIdOrNull(mailTag.getStringOr("fromId", "")), mailTag.getStringOr("from", ""));
             mails.add(new MailMessage(
-                  senderProf,
+                  new NameAndId(AlgoUtils.getUUID(mailTag.getStringOr("fromId", "")),mailTag.getStringOr("from", "")),
                   mailTag.getStringOr("to", ""),
                   FabricMail.getIdOrNull(mailTag.getStringOr("toId", "")),
                   mailTag.getStringOr("message", ""),
