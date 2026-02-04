@@ -80,25 +80,19 @@ public class MailComponent implements IMailComponent{
    
    @Override
    public List<MailMessage> getMailsFor(ServerPlayer player){
-      mails.removeIf(mail -> !mail.checkValid(player.level().getServer()));
-      return mails.stream().filter(mail -> {
-         NameAndId p = mail.findRecipient(player.level().getServer());
-         return p != null && p.id().equals(player.getUUID());
-      }).toList();
+      mails.removeIf(mail -> !mail.checkValidNoResolve());
+      return mails.stream().filter(mail -> mail.recipientId().equals(player.getUUID())).toList();
    }
    
    @Override
    public List<MailMessage> getMailsFrom(ServerPlayer player){
-      mails.removeIf(mail -> !mail.checkValid(player.level().getServer()));
+      mails.removeIf(mail -> !mail.checkValidNoResolve());
       return mails.stream().filter(mail -> mail.senderId().equals(player.getUUID())).toList();
    }
    
    @Override
    public void clearMailFor(ServerPlayer player){
-      mails.removeIf(mail -> !mail.checkValid(player.level().getServer()));
-      mails.removeIf(mail -> {
-         NameAndId p = mail.findRecipient(player.level().getServer());
-         return p != null && p.id().equals(player.getUUID());
-      });
+      mails.removeIf(mail -> !mail.checkValidNoResolve());
+      mails.removeIf(mail -> mail.recipientId().equals(player.getUUID()));
    }
 }

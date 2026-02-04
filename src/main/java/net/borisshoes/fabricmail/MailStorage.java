@@ -3,6 +3,7 @@ package net.borisshoes.fabricmail;
 import com.mojang.authlib.GameProfile;
 import net.borisshoes.borislib.datastorage.DataKey;
 import net.borisshoes.borislib.datastorage.DataRegistry;
+import net.borisshoes.borislib.datastorage.DefaultPlayerData;
 import net.borisshoes.borislib.datastorage.StorableData;
 import net.borisshoes.borislib.utils.AlgoUtils;
 import net.minecraft.nbt.CompoundTag;
@@ -41,44 +42,41 @@ public class MailStorage implements StorableData {
       return mails.add(mail);
    }
    
-   public boolean removeMail(String mailId){
-      return mails.removeIf(m -> UUID.fromString(mailId).equals(m.uuid()));
+   public boolean removeMail(UUID mailId){
+      return mails.removeIf(m -> mailId.equals(m.uuid()));
    }
    
-   public MailMessage getMail(String mailId){
-      Optional<MailMessage> opt = mails.stream().filter(m -> UUID.fromString(mailId).equals(m.uuid())).findFirst();
+   public boolean removeMail(String mailId){
+      return removeMail(AlgoUtils.getUUID(mailId));
+   }
+   
+   public MailMessage getMail(UUID mailId){
+      Optional<MailMessage> opt = mails.stream().filter(m -> mailId.equals(m.uuid())).findFirst();
       return opt.orElse(null);
    }
    
+   public MailMessage getMail(String mailId){
+      return getMail(AlgoUtils.getUUID(mailId));
+   }
+   
    public List<MailMessage> getMailsFor(ServerPlayer player){
-      mails.removeIf(mail -> !mail.checkValid(player.level().getServer()));
-      return mails.stream().filter(mail -> {
-         NameAndId p = mail.findRecipient(player.level().getServer());
-         return p != null && p.id().equals(player.getUUID());
-      }).toList();
+      mails.removeIf(mail -> !mail.checkValidNoResolve());
+      return mails.stream().filter(mail -> mail.recipientId().equals(player.getUUID())).toList();
    }
    
    public List<MailMessage> getMailsFrom(ServerPlayer player){
-      mails.removeIf(mail -> !mail.checkValid(player.level().getServer()));
+      mails.removeIf(mail -> !mail.checkValidNoResolve());
       return mails.stream().filter(mail -> mail.senderId().equals(player.getUUID())).toList();
    }
    
    public List<MailMessage> getMailsForOrFrom(ServerPlayer player){
-      mails.removeIf(mail -> !mail.checkValid(player.level().getServer()));
-      return mails.stream().filter(mail -> {
-         NameAndId p = mail.findRecipient(player.level().getServer());
-         boolean forPlayer = p != null && p.id().equals(player.getUUID());
-         boolean fromPlayer = mail.senderId().equals(player.getUUID());
-         return forPlayer || fromPlayer;
-      }).toList();
+      mails.removeIf(mail -> !mail.checkValidNoResolve());
+      return mails.stream().filter(mail -> mail.recipientId().equals(player.getUUID()) || mail.senderId().equals(player.getUUID())).toList();
    }
    
    public void clearMailFor(ServerPlayer player){
-      mails.removeIf(mail -> !mail.checkValid(player.level().getServer()));
-      mails.removeIf(mail -> {
-         NameAndId p = mail.findRecipient(player.level().getServer());
-         return p != null && p.id().equals(player.getUUID());
-      });
+      mails.removeIf(mail -> !mail.checkValidNoResolve());
+      mails.removeIf(mail -> mail.recipientId().equals(player.getUUID()));
    }
    
    @Override

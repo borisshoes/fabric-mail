@@ -4,12 +4,14 @@ import eu.pb4.sgui.api.ClickType;
 import eu.pb4.sgui.api.elements.GuiElementBuilder;
 import net.borisshoes.borislib.BorisLib;
 import net.borisshoes.borislib.datastorage.DataAccess;
+import net.borisshoes.borislib.datastorage.DefaultPlayerData;
 import net.borisshoes.borislib.gui.*;
 import net.borisshoes.borislib.utils.AlgoUtils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.Items;
@@ -38,8 +40,12 @@ public class MailGui extends PagedGui<MailMessage> {
          GuiElementBuilder mailItem = new GuiElementBuilder(hasParcel ? Items.CHEST : Items.PAPER).hideDefaultTooltip();
          
          if(this.outboundMode){
-            mailItem.setName(Component.translatable("gui.fabricmail.mail_to",
-                  Component.literal(mail.recipient()).withStyle(ChatFormatting.DARK_AQUA, ChatFormatting.BOLD)).withStyle(ChatFormatting.BLUE));
+            MutableComponent toText = Component.literal("");
+            DefaultPlayerData data = DataAccess.getPlayer(mail.recipientId(),BorisLib.PLAYER_DATA_KEY);
+            toText.append(data.getFaceTextComponent().copy().withStyle(ChatFormatting.WHITE))
+                  .append(Component.literal(" ")).append(Component.literal(mail.recipient()).withStyle(ChatFormatting.DARK_AQUA, ChatFormatting.BOLD));
+            
+            mailItem.setName(Component.translatable("gui.fabricmail.mail_to", toText).withStyle(ChatFormatting.BLUE));
             mailItem.addLoreLine(mail.getTimeDiff(System.currentTimeMillis()).withStyle(ChatFormatting.GOLD));
             if(!mail.parcel().isEmpty()){
                mailItem.addLoreLine(Component.translatable("gui.fabricmail.contains_parcel_gui").withStyle(ChatFormatting.GREEN));
@@ -48,8 +54,12 @@ public class MailGui extends PagedGui<MailMessage> {
             mailItem.addLoreLine(Component.translatable("gui.fabricmail.click_revoke",
                   Component.translatable("gui.borislib.click").withStyle(ChatFormatting.AQUA)).withStyle(ChatFormatting.RED));
          }else{
-            mailItem.setName(Component.translatable("gui.fabricmail.mail_from",
-                  Component.literal(mail.sender()).withStyle(ChatFormatting.DARK_AQUA, ChatFormatting.BOLD)).withStyle(ChatFormatting.BLUE));
+            MutableComponent fromText = Component.literal("");
+            DefaultPlayerData data = DataAccess.getPlayer(mail.senderId(),BorisLib.PLAYER_DATA_KEY);
+            fromText.append(data.getFaceTextComponent().copy().withStyle(ChatFormatting.WHITE))
+                  .append(Component.literal(" ")).append(Component.literal(mail.sender()).withStyle(ChatFormatting.DARK_AQUA, ChatFormatting.BOLD));
+            
+            mailItem.setName(Component.translatable("gui.fabricmail.mail_from", fromText).withStyle(ChatFormatting.BLUE));
             mailItem.addLoreLine(mail.getTimeDiff(System.currentTimeMillis()).withStyle(ChatFormatting.GOLD));
             if(!mail.parcel().isEmpty()){
                mailItem.addLoreLine(Component.translatable("gui.fabricmail.contains_parcel_gui").withStyle(ChatFormatting.GREEN));
@@ -70,12 +80,15 @@ public class MailGui extends PagedGui<MailMessage> {
       elemClickFunction((mail, index, clickType) -> {
          MailStorage mailbox = DataAccess.getGlobal(MailStorage.KEY);
          if(outboundMode){
+            MutableComponent fromText = Component.literal("");
+            DefaultPlayerData data = DataAccess.getPlayer(mail.recipientId(),BorisLib.PLAYER_DATA_KEY);
+            fromText.append(data.getFaceTextComponent().copy().withStyle(ChatFormatting.WHITE))
+                  .append(Component.literal(" ")).append(Component.literal(mail.recipient()).withStyle(ChatFormatting.AQUA));
+            
             if(!mail.parcel().isEmpty()){
-               player.sendSystemMessage(Component.translatable("text.fabricmail.revoked_mail_to_parcel",
-                     Component.literal(mail.recipient()).withStyle(ChatFormatting.AQUA)).withStyle(ChatFormatting.LIGHT_PURPLE));
+               player.sendSystemMessage(Component.translatable("text.fabricmail.revoked_mail_to_parcel", fromText).withStyle(ChatFormatting.LIGHT_PURPLE));
             }else{
-               player.sendSystemMessage(Component.translatable("text.fabricmail.revoked_mail_to",
-                     Component.literal(mail.recipient()).withStyle(ChatFormatting.AQUA)).withStyle(ChatFormatting.LIGHT_PURPLE));
+               player.sendSystemMessage(Component.translatable("text.fabricmail.revoked_mail_to", fromText).withStyle(ChatFormatting.LIGHT_PURPLE));
             }
             
             givePlayerStack(player,mail.popParcel(player.registryAccess()));
@@ -85,10 +98,14 @@ public class MailGui extends PagedGui<MailMessage> {
                mailbox.removeMail(mail.uuid().toString());
                player.sendSystemMessage(Component.translatable("gui.fabricmail.deleted_mail", mail.uuid().toString()).withStyle(ChatFormatting.LIGHT_PURPLE));
             }else if(clickType == ClickType.MOUSE_LEFT_SHIFT){
+               MutableComponent fromText = Component.literal("");
+               DefaultPlayerData data = DataAccess.getPlayer(mail.senderId(),BorisLib.PLAYER_DATA_KEY);
+               fromText.append(data.getFaceTextComponent().copy().withStyle(ChatFormatting.WHITE))
+                     .append(Component.literal(" ")).append(Component.literal(mail.sender()).withStyle(ChatFormatting.DARK_AQUA));
+               
                player.sendSystemMessage(Component.literal(""));
                player.sendSystemMessage(Component.translatable("text.fabricmail.mail_from_header",
-                     Component.literal(mail.sender()).withStyle(ChatFormatting.DARK_AQUA),
-                     mail.getTimeDiff(System.currentTimeMillis()).withStyle(ChatFormatting.GOLD)).withStyle(ChatFormatting.BLUE));
+                     fromText, mail.getTimeDiff(System.currentTimeMillis()).withStyle(ChatFormatting.GOLD)).withStyle(ChatFormatting.BLUE));
                player.sendSystemMessage(Component.literal(mail.message()).withStyle(ChatFormatting.AQUA));
                player.sendSystemMessage(Component.literal(""));
                if(!mail.parcel().isEmpty()){
@@ -99,10 +116,14 @@ public class MailGui extends PagedGui<MailMessage> {
                mailbox.removeMail(mail.uuid().toString());
                player.sendSystemMessage(Component.translatable("gui.fabricmail.deleted_mail", mail.uuid().toString()).withStyle(ChatFormatting.LIGHT_PURPLE));
             }else{
+               MutableComponent fromText = Component.literal("");
+               DefaultPlayerData data = DataAccess.getPlayer(mail.senderId(),BorisLib.PLAYER_DATA_KEY);
+               fromText.append(data.getFaceTextComponent().copy().withStyle(ChatFormatting.WHITE))
+                     .append(Component.literal(" ")).append(Component.literal(mail.sender()).withStyle(ChatFormatting.DARK_AQUA));
+               
                player.sendSystemMessage(Component.literal(""));
                player.sendSystemMessage(Component.translatable("text.fabricmail.mail_from_header",
-                     Component.literal(mail.sender()).withStyle(ChatFormatting.DARK_AQUA),
-                     mail.getTimeDiff(System.currentTimeMillis()).withStyle(ChatFormatting.GOLD)).withStyle(ChatFormatting.BLUE));
+                     fromText, mail.getTimeDiff(System.currentTimeMillis()).withStyle(ChatFormatting.GOLD)).withStyle(ChatFormatting.BLUE));
                player.sendSystemMessage(Component.literal(mail.message()).withStyle(ChatFormatting.AQUA));
                player.sendSystemMessage(Component.literal(""));
                if(!mail.parcel().isEmpty()){

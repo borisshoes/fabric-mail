@@ -5,11 +5,13 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.mojang.serialization.Lifecycle;
+import net.borisshoes.borislib.BorisLib;
 import net.borisshoes.borislib.config.ConfigManager;
 import net.borisshoes.borislib.config.ConfigSetting;
 import net.borisshoes.borislib.config.IConfigSetting;
 import net.borisshoes.borislib.config.values.IntConfigValue;
 import net.borisshoes.borislib.datastorage.DataAccess;
+import net.borisshoes.borislib.datastorage.DefaultPlayerData;
 import net.borisshoes.fabricmail.cardinalcomponents.DataFixer;
 import net.borisshoes.fabricmail.cardinalcomponents.IMailComponent;
 import net.fabricmc.api.ModInitializer;
@@ -163,8 +165,8 @@ public class FabricMail implements ModInitializer {
    
       if(online){
          for(ServerPlayer player : server.getPlayerList().getPlayers()){
-            MailMessage newMail = new MailMessage(new NameAndId(UUID.fromString("291af7c7-2114-45bb-a97a-d3b4077392e8"),"System"),player.getGameProfile().name(),player.getGameProfile().id(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
-            newMail.checkValid(server);
+            MailMessage newMail = new MailMessage(new NameAndId(UUID.fromString("291af7c7-2114-45bb-a97a-d3b4077392e8"),"System"),player.getGameProfile().name(),player.getGameProfile().id(),message,parcelTag);
+            newMail.validate(server,source,null);
             mailbox.addMail(newMail);
             player.sendSystemMessage(Component.translatable("text.fabricmail.received_mail").withStyle(s ->
                   s.withClickEvent(new ClickEvent.RunCommand("/mail read "+newMail.uuid().toString()))
@@ -173,18 +175,12 @@ public class FabricMail implements ModInitializer {
          }
       }
       if(offline){
-         UserNameToIdResolver baseCache = server.services().nameToIdCache();
-         if(baseCache instanceof CachedUserNameToIdResolver userCache){
-            List<CachedUserNameToIdResolver.GameProfileInfo> cacheEntries = userCache.load();
-            for(CachedUserNameToIdResolver.GameProfileInfo cacheEntry : cacheEntries){
-               Optional<GameProfile> opt = server.services().profileResolver().fetchById(cacheEntry.nameAndId().id());;
-               if(opt.isEmpty()) continue;
-               if(server.getPlayerList().getPlayer(cacheEntry.nameAndId().id()) == null){
-                  MailMessage newMail = new MailMessage(new NameAndId(UUID.fromString("291af7c7-2114-45bb-a97a-d3b4077392e8"),"System"),cacheEntry.nameAndId().name(), cacheEntry.nameAndId().id(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
-                  newMail.checkValid(server);
-                  mailbox.addMail(newMail);
-               }
-            }
+         for(DefaultPlayerData value : DataAccess.allPlayerDataFor(BorisLib.PLAYER_DATA_KEY).values()){
+            if(server.getPlayerList().getPlayer(value.getPlayerID()) != null) continue;
+            if(value.getUsername() == null || value.getUsername().isEmpty()) continue;
+            MailMessage newMail = new MailMessage(new NameAndId(UUID.fromString("291af7c7-2114-45bb-a97a-d3b4077392e8"),"System"),value.getUsername(),value.getPlayerID(),message,parcelTag);
+            newMail.validate(server,source,null);
+            mailbox.addMail(newMail);
          }
       }
       
@@ -221,9 +217,14 @@ public class FabricMail implements ModInitializer {
                Component.translatable("text.fabricmail.click_to_read_hint").withStyle(ChatFormatting.LIGHT_PURPLE)).withStyle(ChatFormatting.AQUA));
          for(int i = 0; i < mails.size(); i++){
             MailMessage mail = mails.get(i);
+            MutableComponent fromText = Component.literal("");
+            DefaultPlayerData data = DataAccess.getPlayer(mail.senderId(),BorisLib.PLAYER_DATA_KEY);
+            fromText.append(data.getFaceTextComponent().copy().withStyle(ChatFormatting.WHITE))
+                  .append(Component.literal(" ")).append(Component.literal(mail.sender()).withStyle(ChatFormatting.DARK_AQUA));
+            
             MutableComponent mailText = Component.translatable("text.fabricmail.mail_list_entry",
                   Component.literal(""+(i+1)).withStyle(ChatFormatting.AQUA),
-                  Component.literal(mail.sender()).withStyle(ChatFormatting.DARK_AQUA),
+                  fromText,
                   mail.getTimeDiff(System.currentTimeMillis()).withStyle(ChatFormatting.GOLD)).withStyle(ChatFormatting.BLUE);
             
             if(!mail.parcel().isEmpty()){
@@ -256,10 +257,14 @@ public class FabricMail implements ModInitializer {
                Component.translatable("text.fabricmail.click_unsend_hint").withStyle(ChatFormatting.LIGHT_PURPLE)).withStyle(ChatFormatting.AQUA));
          for(int i = 0; i < mails.size(); i++){
             MailMessage mail = mails.get(i);
+            MutableComponent toText = Component.literal("");
+            DefaultPlayerData data = DataAccess.getPlayer(mail.recipientId(),BorisLib.PLAYER_DATA_KEY);
+            toText.append(data.getFaceTextComponent().copy().withStyle(ChatFormatting.WHITE))
+                  .append(Component.literal(" ")).append(Component.literal(mail.recipient()).withStyle(ChatFormatting.DARK_AQUA));
             
             MutableComponent mailText = Component.translatable("text.fabricmail.mail_outbound_entry",
                   Component.literal(""+(i+1)).withStyle(ChatFormatting.AQUA),
-                  Component.literal(mail.sender()).withStyle(ChatFormatting.DARK_AQUA),
+                  toText,
                   mail.getTimeDiff(System.currentTimeMillis()).withStyle(ChatFormatting.GOLD)).withStyle(ChatFormatting.BLUE);
             
             if(!mail.parcel().isEmpty()){
@@ -308,33 +313,25 @@ public class FabricMail implements ModInitializer {
                   outbound++;
                }
             }
-            if(outbound >= maxOutbound){
+            if(outbound >= maxOutbound && !Commands.LEVEL_ADMINS.check(context.getSource().permissions())){
                source.sendFailure(Component.translatable("text.fabricmail.max_outbound_reached"));
                return -1;
             }
          }
          
          ServerPlayer onlineTo = server.getPlayerList().getPlayerByName(to);
-         
-         MailMessage newMail = new MailMessage(new NameAndId(player.getGameProfile()),to,onlineTo == null ? null : onlineTo.getUUID(),message, UUID.randomUUID(),System.currentTimeMillis(),parcelTag);
+         MailMessage newMail = new MailMessage(new NameAndId(player.getGameProfile()),to,onlineTo == null ? null : onlineTo.getUUID(),message,parcelTag);
          if(newMail.sender().equals(newMail.recipient())){
             source.sendFailure(Component.translatable("text.fabricmail.cannot_mail_self"));
             return -1;
-         }else if(newMail.checkValid(server)){
+         }else{
             if(!stack.isEmpty() && !player.isCreative())
                player.getInventory().removeItem(stack);
             
+            newMail.validate(server,source,player);
             mailbox.addMail(newMail);
-            ServerPlayer recipient = player.level().getServer().getPlayerList().getPlayerByName(to);
-            if(recipient != null){
-               List<MailMessage> mails = mailbox.getMailsFor(recipient);
-               for(int i = 0; i < mails.size(); i++){
-                  MailMessage mail = mails.get(i);
-                  if(mail.uuid().equals(newMail.uuid())){
-                     break;
-                  }
-               }
-               recipient.sendSystemMessage(Component.translatable("text.fabricmail.received_mail").withStyle(s ->
+            if(onlineTo != null){
+               onlineTo.sendSystemMessage(Component.translatable("text.fabricmail.received_mail").withStyle(s ->
                      s.withClickEvent(new ClickEvent.RunCommand("/mail read "+newMail.uuid().toString()))
                            .withHoverEvent(new HoverEvent.ShowText(Component.translatable("text.fabricmail.click_view_mail",newMail.uuid().toString())))
                            .withColor(ChatFormatting.LIGHT_PURPLE)));
@@ -346,8 +343,6 @@ public class FabricMail implements ModInitializer {
                         .withColor(ChatFormatting.AQUA)));
             
             LOGGER.log(Level.INFO,player.getScoreboardName()+" sent mail to "+to+": "+message);
-         }else{
-            source.sendFailure(Component.translatable("text.fabricmail.recipient_not_exist"));
          }
          
          return -1;
@@ -408,12 +403,15 @@ public class FabricMail implements ModInitializer {
          
          for(MailMessage mail : mails){
             if(mail.uuid().equals(mailID) && mail.senderId().equals(player.getUUID())){
+               MutableComponent fromText = Component.literal("");
+               DefaultPlayerData data = DataAccess.getPlayer(mail.recipientId(),BorisLib.PLAYER_DATA_KEY);
+               fromText.append(data.getFaceTextComponent().copy().withStyle(ChatFormatting.WHITE))
+                     .append(Component.literal(" ")).append(Component.literal(mail.recipient()).withStyle(ChatFormatting.AQUA));
+               
                if(!mail.parcel().isEmpty()){
-                  player.sendSystemMessage(Component.translatable("text.fabricmail.revoked_mail_to_parcel",
-                        Component.literal(mail.recipient()).withStyle(ChatFormatting.AQUA)).withStyle(ChatFormatting.LIGHT_PURPLE));
+                  player.sendSystemMessage(Component.translatable("text.fabricmail.revoked_mail_to_parcel", fromText).withStyle(ChatFormatting.LIGHT_PURPLE));
                }else{
-                  player.sendSystemMessage(Component.translatable("text.fabricmail.revoked_mail_to",
-                        Component.literal(mail.recipient()).withStyle(ChatFormatting.AQUA)).withStyle(ChatFormatting.LIGHT_PURPLE));
+                  player.sendSystemMessage(Component.translatable("text.fabricmail.revoked_mail_to", fromText).withStyle(ChatFormatting.LIGHT_PURPLE));
                }
                
                givePlayerStack(player,mail.popParcel(context.getSource().registryAccess()));
@@ -446,10 +444,14 @@ public class FabricMail implements ModInitializer {
          
          MailMessage mail = mailbox.getMail(mailID.toString());
          if(mail != null && mail.recipientId().equals(player.getUUID())){
+            MutableComponent fromText = Component.literal("");
+            DefaultPlayerData data = DataAccess.getPlayer(mail.senderId(),BorisLib.PLAYER_DATA_KEY);
+            fromText.append(data.getFaceTextComponent().copy().withStyle(ChatFormatting.WHITE))
+                  .append(Component.literal(" ")).append(Component.literal(mail.sender()).withStyle(ChatFormatting.DARK_AQUA));
+            
             player.sendSystemMessage(Component.literal(""));
             player.sendSystemMessage(Component.translatable("text.fabricmail.mail_from_header",
-                  Component.literal(mail.sender()).withStyle(ChatFormatting.DARK_AQUA),
-                  mail.getTimeDiff(System.currentTimeMillis()).withStyle(ChatFormatting.GOLD)).withStyle(ChatFormatting.BLUE));
+                  fromText, mail.getTimeDiff(System.currentTimeMillis()).withStyle(ChatFormatting.GOLD)).withStyle(ChatFormatting.BLUE));
             player.sendSystemMessage(Component.literal(mail.message()).withStyle(ChatFormatting.AQUA));
             player.sendSystemMessage(Component.literal(""));
             if(!mail.parcel().isEmpty()){
