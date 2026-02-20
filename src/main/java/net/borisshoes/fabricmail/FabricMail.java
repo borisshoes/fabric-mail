@@ -313,9 +313,15 @@ public class FabricMail implements ModInitializer {
                   outbound++;
                }
             }
-            if(outbound >= maxOutbound && !Commands.LEVEL_ADMINS.check(context.getSource().permissions())){
-               source.sendFailure(Component.translatable("text.fabricmail.max_outbound_reached"));
-               return -1;
+
+            if (!Commands.LEVEL_ADMINS.check(context.getSource().permissions())) {
+               if (maxOutbound == 0) {
+                  source.sendFailure(Component.translatable("text.fabricmail.parcel_disabled"));
+                  return -1;
+               }else if(outbound >= maxOutbound){
+                  source.sendFailure(Component.translatable("text.fabricmail.max_outbound_reached"));
+                  return -1;
+               }
             }
          }
          

@@ -52,6 +52,7 @@
   "text.fabricmail.only_players_receive": "Only players can receive mail",
   "text.fabricmail.only_players_send": "Only players can send mail",
   "text.fabricmail.parcel_added_inventory": "This Mail contained a Parcel. It has been added to your Inventory.",
+  "text.fabricmail.parcel_disabled": "Parcels are disabled on this server",
   "text.fabricmail.received_mail": "You Just Received Mail!",
   "text.fabricmail.recipient_not_exist": "Recipient Does Not Exist",
   "text.fabricmail.revoked_mail_to": "Revoked Mail to %s.",
