@@ -34,6 +34,7 @@ public class MailGui extends PagedGui<MailMessage> {
       super(MenuType.GENERIC_9x6, player, DataAccess.getGlobal(MailStorage.KEY).getMailsForOrFrom(player));
       
       MailFilter.setData(this.outboundMode,player.getUUID());
+      MailSort.setData(this.outboundMode);
       
       itemElemBuilder((mail, i) -> {
          boolean hasParcel = !mail.parcel().isEmpty();
@@ -157,6 +158,7 @@ public class MailGui extends PagedGui<MailMessage> {
    public void buildPage(){
       items(DataAccess.getGlobal(MailStorage.KEY).getMailsForOrFrom(player));
       MailFilter.setData(this.outboundMode,player.getUUID());
+      MailSort.setData(this.outboundMode);
       GuiHelper.outlineGUI(this, 0x1F44DD, Component.literal(""));
       
       if(this.outboundMode){
@@ -185,11 +187,14 @@ public class MailGui extends PagedGui<MailMessage> {
    
    private static class MailSort extends GuiSort<MailMessage> {
       public static final List<MailSort> SORTS = new ArrayList<>();
+      private static boolean outbound = false;
       
       public static final MailSort RECENT_LAST = new MailSort("gui.fabricmail.recent_last", ChatFormatting.AQUA.getColor().intValue(),
             Comparator.comparingLong(MailMessage::timestamp));
       public static final MailSort RECENT_FIRST = new MailSort("gui.fabricmail.recent_first", ChatFormatting.GREEN.getColor().intValue(),
             Comparator.comparingLong(mail -> -mail.timestamp()));
+      public static final MailSort ALPHABETICAL = new MailSort("gui.borislib.alphabetical", ChatFormatting.LIGHT_PURPLE.getColor().intValue(),
+            Comparator.comparing(isOutbound() ? MailMessage::recipient : MailMessage::sender));
       
       private MailSort(String key, int color, Comparator<MailMessage> comparator){
          super(key, color, comparator);
@@ -203,6 +208,14 @@ public class MailGui extends PagedGui<MailMessage> {
       
       public MailSort getStaticDefault(){
          return RECENT_FIRST;
+      }
+      
+      public static boolean isOutbound(){
+         return outbound;
+      }
+      
+      public static void setData(boolean outbound){
+         MailSort.outbound = outbound;
       }
    }
    
