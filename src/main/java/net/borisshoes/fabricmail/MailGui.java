@@ -13,6 +13,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.Items;
 
@@ -33,7 +34,7 @@ public class MailGui extends PagedGui<MailMessage> {
    public MailGui(ServerPlayer player){
       super(MenuType.GENERIC_9x6, player, DataAccess.getGlobal(MailStorage.KEY).getMailsForOrFrom(player));
       
-      MailFilter.setData(this.outboundMode,player.getUUID());
+      MailFilter.setData(this.outboundMode, player.getUUID());
       MailSort.setData(this.outboundMode);
       
       itemElemBuilder((mail, i) -> {
@@ -42,7 +43,7 @@ public class MailGui extends PagedGui<MailMessage> {
          
          if(this.outboundMode){
             MutableComponent toText = Component.literal("");
-            DefaultPlayerData data = DataAccess.getPlayer(mail.recipientId(),BorisLib.PLAYER_DATA_KEY);
+            DefaultPlayerData data = DataAccess.getPlayer(mail.recipientId(), BorisLib.PLAYER_DATA_KEY);
             toText.append(data.getFaceTextComponent().copy().withStyle(ChatFormatting.WHITE))
                   .append(Component.literal(" ")).append(Component.literal(mail.recipient()).withStyle(ChatFormatting.DARK_AQUA, ChatFormatting.BOLD));
             
@@ -56,7 +57,7 @@ public class MailGui extends PagedGui<MailMessage> {
                   Component.translatable("gui.borislib.click").withStyle(ChatFormatting.AQUA)).withStyle(ChatFormatting.RED));
          }else{
             MutableComponent fromText = Component.literal("");
-            DefaultPlayerData data = DataAccess.getPlayer(mail.senderId(),BorisLib.PLAYER_DATA_KEY);
+            DefaultPlayerData data = DataAccess.getPlayer(mail.senderId(), BorisLib.PLAYER_DATA_KEY);
             fromText.append(data.getFaceTextComponent().copy().withStyle(ChatFormatting.WHITE))
                   .append(Component.literal(" ")).append(Component.literal(mail.sender()).withStyle(ChatFormatting.DARK_AQUA, ChatFormatting.BOLD));
             
@@ -82,7 +83,7 @@ public class MailGui extends PagedGui<MailMessage> {
          MailStorage mailbox = DataAccess.getGlobal(MailStorage.KEY);
          if(outboundMode){
             MutableComponent fromText = Component.literal("");
-            DefaultPlayerData data = DataAccess.getPlayer(mail.recipientId(),BorisLib.PLAYER_DATA_KEY);
+            DefaultPlayerData data = DataAccess.getPlayer(mail.recipientId(), BorisLib.PLAYER_DATA_KEY);
             fromText.append(data.getFaceTextComponent().copy().withStyle(ChatFormatting.WHITE))
                   .append(Component.literal(" ")).append(Component.literal(mail.recipient()).withStyle(ChatFormatting.AQUA));
             
@@ -92,7 +93,7 @@ public class MailGui extends PagedGui<MailMessage> {
                player.sendSystemMessage(Component.translatable("text.fabricmail.revoked_mail_to", fromText).withStyle(ChatFormatting.LIGHT_PURPLE));
             }
             
-            givePlayerStack(player,mail.popParcel(player.registryAccess()));
+            givePlayerStack(player, mail.popParcel(player.registryAccess()));
             mailbox.removeMail(mail.uuid().toString());
          }else{
             if(clickType == ClickType.MOUSE_RIGHT){
@@ -100,7 +101,7 @@ public class MailGui extends PagedGui<MailMessage> {
                player.sendSystemMessage(Component.translatable("gui.fabricmail.deleted_mail", mail.uuid().toString()).withStyle(ChatFormatting.LIGHT_PURPLE));
             }else if(clickType == ClickType.MOUSE_LEFT_SHIFT){
                MutableComponent fromText = Component.literal("");
-               DefaultPlayerData data = DataAccess.getPlayer(mail.senderId(),BorisLib.PLAYER_DATA_KEY);
+               DefaultPlayerData data = DataAccess.getPlayer(mail.senderId(), BorisLib.PLAYER_DATA_KEY);
                fromText.append(data.getFaceTextComponent().copy().withStyle(ChatFormatting.WHITE))
                      .append(Component.literal(" ")).append(Component.literal(mail.sender()).withStyle(ChatFormatting.DARK_AQUA));
                
@@ -113,12 +114,12 @@ public class MailGui extends PagedGui<MailMessage> {
                   player.sendSystemMessage(Component.translatable("text.fabricmail.parcel_added_inventory").withStyle(ChatFormatting.GREEN, ChatFormatting.ITALIC));
                }
                
-               givePlayerStack(player,mail.popParcel(player.registryAccess()));
+               givePlayerStack(player, mail.popParcel(player.registryAccess()));
                mailbox.removeMail(mail.uuid().toString());
                player.sendSystemMessage(Component.translatable("gui.fabricmail.deleted_mail", mail.uuid().toString()).withStyle(ChatFormatting.LIGHT_PURPLE));
             }else{
                MutableComponent fromText = Component.literal("");
-               DefaultPlayerData data = DataAccess.getPlayer(mail.senderId(),BorisLib.PLAYER_DATA_KEY);
+               DefaultPlayerData data = DataAccess.getPlayer(mail.senderId(), BorisLib.PLAYER_DATA_KEY);
                fromText.append(data.getFaceTextComponent().copy().withStyle(ChatFormatting.WHITE))
                      .append(Component.literal(" ")).append(Component.literal(mail.sender()).withStyle(ChatFormatting.DARK_AQUA));
                
@@ -131,11 +132,11 @@ public class MailGui extends PagedGui<MailMessage> {
                   player.sendSystemMessage(Component.translatable("text.fabricmail.parcel_added_inventory").withStyle(ChatFormatting.GREEN, ChatFormatting.ITALIC));
                }
                player.sendSystemMessage(Component.translatable("text.fabricmail.click_remove_message").withStyle(s ->
-                     s.withClickEvent(new ClickEvent.RunCommand("/mail delete "+mail.uuid().toString()))
+                     s.withClickEvent(new ClickEvent.RunCommand("/mail delete " + mail.uuid().toString()))
                            .withHoverEvent(new HoverEvent.ShowText(Component.translatable("text.fabricmail.click_delete_mail")))
                            .withColor(ChatFormatting.LIGHT_PURPLE)));
                
-               givePlayerStack(player,mail.popParcel(player.registryAccess()));
+               givePlayerStack(player, mail.popParcel(player.registryAccess()));
             }
          }
          buildPage();
@@ -146,7 +147,7 @@ public class MailGui extends PagedGui<MailMessage> {
    }
    
    @Override
-   public boolean onAnyClick(int index, ClickType type, net.minecraft.world.inventory.ClickType action){
+   public boolean onAnyClick(int index, ClickType type, ContainerInput action){
       if(index == 4){
          this.outboundMode = !this.outboundMode;
          this.buildPage();
@@ -157,7 +158,7 @@ public class MailGui extends PagedGui<MailMessage> {
    @Override
    public void buildPage(){
       items(DataAccess.getGlobal(MailStorage.KEY).getMailsForOrFrom(player));
-      MailFilter.setData(this.outboundMode,player.getUUID());
+      MailFilter.setData(this.outboundMode, player.getUUID());
       MailSort.setData(this.outboundMode);
       GuiHelper.outlineGUI(this, 0x1F44DD, Component.literal(""));
       
@@ -175,7 +176,7 @@ public class MailGui extends PagedGui<MailMessage> {
       modeButton.addLoreLine(Component.translatable("gui.fabricmail.toggle_mailbox_mode",
             Component.translatable("gui.borislib.click").withStyle(ChatFormatting.AQUA)
       ).withStyle(ChatFormatting.LIGHT_PURPLE));
-      setSlot(4,modeButton);
+      setSlot(4, modeButton);
       
       super.buildPage();
    }

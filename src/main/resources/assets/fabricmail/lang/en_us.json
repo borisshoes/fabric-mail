@@ -1,4 +1,6 @@
 {
+  "command.fabricmail.log_command_usage.comment": "Whether to log successful command usage to the server console.",
+  "command.fabricmail.log_command_usage.getter_setter": "Log command usage: %s",
   "command.fabricmail.max_sent_parcels.comment": "The maximum amount of un-collected outbound parcels a player can have before they cannot send any more.",
   "command.fabricmail.max_sent_parcels.getter_setter": "Maximum outbound parcels: %s",
   "gui.fabricmail.click_read": "%s to READ this mail",
@@ -46,6 +48,7 @@
   "text.fabricmail.message_sent": "Message Sent!",
   "text.fabricmail.message_too_long": "Message Length Exceeds 1024 Characters",
   "text.fabricmail.minutes": "Minutes",
+  "text.fabricmail.no_permission": "You do not have permission to use this command",
   "text.fabricmail.only_player_broadcast_parcel": "Only a player can broadcast with a parcel",
   "text.fabricmail.only_players_delete": "Only players can delete mail",
   "text.fabricmail.only_players_gui": "Only players can open a mail GUI",

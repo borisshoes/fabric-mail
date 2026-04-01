@@ -43,7 +43,7 @@ public class MailMessage {
    private CompoundTag parcel;
    
    public MailMessage(NameAndId senderProfile, String recipient, UUID recipientId, String message, CompoundTag parcel){
-      this(senderProfile,recipient,recipientId,message,UUID.randomUUID(),System.currentTimeMillis(),parcel);
+      this(senderProfile, recipient, recipientId, message, UUID.randomUUID(), System.currentTimeMillis(), parcel);
    }
    
    public MailMessage(NameAndId senderProfile, String recipient, @Nullable UUID recipientId, String message, UUID uuid, long timestamp, CompoundTag parcel){
@@ -61,13 +61,17 @@ public class MailMessage {
       return sender;
    }
    
-   public UUID senderId() { return senderId; }
+   public UUID senderId(){
+      return senderId;
+   }
    
    public String recipient(){
       return recipient;
    }
    
-   public UUID recipientId(){ return recipientId; }
+   public UUID recipientId(){
+      return recipientId;
+   }
    
    public String message(){
       return message;
@@ -97,7 +101,7 @@ public class MailMessage {
          server.execute(() -> optional.ifPresentOrElse(
                (gameProfile) -> {
                   this.recipientId = optional.get().id();
-                  DataAccess.getPlayer(this.recipientId,BorisLib.PLAYER_DATA_KEY).tryResolve(server);
+                  DataAccess.getPlayer(this.recipientId, BorisLib.PLAYER_DATA_KEY).tryResolve(server);
                },
                () -> {
                   commandSourceStack.sendFailure(Component.translatable("text.fabricmail.recipient_not_exist"));
@@ -105,7 +109,7 @@ public class MailMessage {
                   mailbox.removeMail(this.uuid);
                   ItemStack parcel = popParcel(server.registryAccess());
                   if(!parcel.isEmpty() && player != null){
-                     BorisLib.addTickTimerCallback(new ItemReturnTimerCallback(parcel,player,0));
+                     BorisLib.addTickTimerCallback(new ItemReturnTimerCallback(parcel, player, 0));
                   }
                }
          ));
@@ -125,36 +129,36 @@ public class MailMessage {
       MutableComponent text = Component.literal("");
       boolean needSpace = false;
       if(daysDif > 0){
-         text.append(Component.literal(daysDif+" "));
+         text.append(Component.literal(daysDif + " "));
          text.append(Component.translatable("text.fabricmail.days"));
          needSpace = true;
       }
       if(hoursDif > 0){
          if(needSpace) text.append(Component.literal(" "));
-         text.append(Component.literal(hoursDif+" "));
+         text.append(Component.literal(hoursDif + " "));
          text.append(Component.translatable("text.fabricmail.hours"));
          needSpace = true;
       }
       if(minutesDif > 0){
          if(needSpace) text.append(Component.literal(" "));
-         text.append(Component.literal(minutesDif+" "));
+         text.append(Component.literal(minutesDif + " "));
          text.append(Component.translatable("text.fabricmail.minutes"));
          needSpace = true;
       }
       if(secondsDiff > 0){
          if(needSpace) text.append(Component.literal(" "));
-         text.append(Component.literal(secondsDiff+" "));
+         text.append(Component.literal(secondsDiff + " "));
          text.append(Component.translatable("text.fabricmail.seconds"));
       }
-      return Component.translatable("text.fabricmail.time_diff",text);
+      return Component.translatable("text.fabricmail.time_diff", text);
    }
    
    private ItemStack peekParcel(HolderLookup.Provider registryLookup){
-      return ItemStack.CODEC.parse(RegistryOps.create(NbtOps.INSTANCE,registryLookup),parcel).result().orElse(ItemStack.EMPTY);
+      return ItemStack.CODEC.parse(RegistryOps.create(NbtOps.INSTANCE, registryLookup), parcel).result().orElse(ItemStack.EMPTY);
    }
    
    public ItemStack popParcel(HolderLookup.Provider registryLookup){
-      ItemStack stack = ItemStack.CODEC.parse(RegistryOps.create(NbtOps.INSTANCE,registryLookup),parcel).result().orElse(ItemStack.EMPTY);
+      ItemStack stack = ItemStack.CODEC.parse(RegistryOps.create(NbtOps.INSTANCE, registryLookup), parcel).result().orElse(ItemStack.EMPTY);
       parcel = new CompoundTag();
       return stack;
    }
