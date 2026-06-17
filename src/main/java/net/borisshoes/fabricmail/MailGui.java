@@ -8,10 +8,7 @@ import net.borisshoes.borislib.datastorage.DefaultPlayerData;
 import net.borisshoes.borislib.gui.*;
 import net.borisshoes.borislib.utils.AlgoUtils;
 import net.minecraft.ChatFormatting;
-import net.minecraft.network.chat.ClickEvent;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.HoverEvent;
-import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.*;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.MenuType;
@@ -190,11 +187,11 @@ public class MailGui extends PagedGui<MailMessage> {
       public static final List<MailSort> SORTS = new ArrayList<>();
       private static boolean outbound = false;
       
-      public static final MailSort RECENT_LAST = new MailSort("gui.fabricmail.recent_last", ChatFormatting.AQUA.getColor().intValue(),
+      public static final MailSort RECENT_LAST = new MailSort("gui.fabricmail.recent_last", TextColor.AQUA.getValue(),
             Comparator.comparingLong(MailMessage::timestamp));
-      public static final MailSort RECENT_FIRST = new MailSort("gui.fabricmail.recent_first", ChatFormatting.GREEN.getColor().intValue(),
+      public static final MailSort RECENT_FIRST = new MailSort("gui.fabricmail.recent_first", TextColor.GREEN.getValue(),
             Comparator.comparingLong(mail -> -mail.timestamp()));
-      public static final MailSort ALPHABETICAL = new MailSort("gui.borislib.alphabetical", ChatFormatting.LIGHT_PURPLE.getColor().intValue(),
+      public static final MailSort ALPHABETICAL = new MailSort("gui.borislib.alphabetical", TextColor.LIGHT_PURPLE.getValue(),
             Comparator.comparing(isOutbound() ? MailMessage::recipient : MailMessage::sender));
       
       private MailSort(String key, int color, Comparator<MailMessage> comparator){
@@ -225,9 +222,9 @@ public class MailGui extends PagedGui<MailMessage> {
       private static boolean outbound = false;
       private static UUID player = AlgoUtils.getUUID(BorisLib.BLANK_UUID);
       
-      public static final MailFilter NONE = new MailFilter("gui.borislib.none", ChatFormatting.WHITE.getColor().intValue(), entry -> isOutbound() == (entry.senderId().equals(getPlayer())));
-      public static final MailFilter HAS_PARCEL = new MailFilter("gui.fabricmail.has_parcel", ChatFormatting.GREEN.getColor().intValue(), entry -> !entry.parcel().isEmpty() && isOutbound() == (entry.senderId().equals(getPlayer())));
-      public static final MailFilter NO_PARCEL = new MailFilter("gui.fabricmail.no_parcel", ChatFormatting.RED.getColor().intValue(), entry -> entry.parcel().isEmpty() && isOutbound() == (entry.senderId().equals(getPlayer())));
+      public static final MailFilter NONE = new MailFilter("gui.borislib.none", TextColor.WHITE.getValue(), entry -> isOutbound() == (entry.senderId().equals(getPlayer())));
+      public static final MailFilter HAS_PARCEL = new MailFilter("gui.fabricmail.has_parcel", TextColor.GREEN.getValue(), entry -> !entry.parcel().isEmpty() && isOutbound() == (entry.senderId().equals(getPlayer())));
+      public static final MailFilter NO_PARCEL = new MailFilter("gui.fabricmail.no_parcel", TextColor.RED.getValue(), entry -> entry.parcel().isEmpty() && isOutbound() == (entry.senderId().equals(getPlayer())));
       
       private MailFilter(String key, int color, Predicate<MailMessage> predicate){
          super(key, color, predicate);
