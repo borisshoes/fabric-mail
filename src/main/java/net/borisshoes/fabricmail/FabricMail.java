@@ -1,13 +1,12 @@
 package net.borisshoes.fabricmail;
 
-import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
-import com.mojang.datafixers.DataFixer;
 import com.mojang.serialization.Lifecycle;
 import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.borisshoes.borislib.BorisLib;
+import net.borisshoes.borislib.callbacks.ItemReturnTimerCallback;
 import net.borisshoes.borislib.config.ConfigManager;
 import net.borisshoes.borislib.config.ConfigSetting;
 import net.borisshoes.borislib.config.IConfigSetting;
@@ -17,40 +16,36 @@ import net.borisshoes.borislib.datastorage.DataAccess;
 import net.borisshoes.borislib.datastorage.DefaultPlayerData;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.commands.Commands;
-import net.minecraft.server.permissions.PermissionLevel;
+import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.MappedRegistry;
 import net.minecraft.core.Registry;
-import net.minecraft.resources.Identifier;
-import net.minecraft.resources.ResourceKey;
-import net.minecraft.server.players.NameAndId;
-import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.NbtOps;
-import net.minecraft.resources.RegistryOps;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.network.chat.Component;
-import net.minecraft.ChatFormatting;
-import net.minecraft.server.players.UserNameToIdResolver;
-import net.minecraft.server.players.CachedUserNameToIdResolver;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.RegistryOps;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.PermissionLevel;
+import net.minecraft.server.players.NameAndId;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import static com.mojang.brigadier.arguments.IntegerArgumentType.integer;
 import static com.mojang.brigadier.arguments.StringArgumentType.*;
 import static net.minecraft.commands.Commands.argument;
 import static net.minecraft.commands.Commands.literal;
@@ -438,7 +433,7 @@ public class FabricMail implements ModInitializer {
                   player.sendSystemMessage(Component.translatable("text.fabricmail.revoked_mail_to", fromText).withStyle(ChatFormatting.LIGHT_PURPLE));
                }
                
-               givePlayerStack(player, mail.popParcel(context.getSource().registryAccess()));
+               BorisLib.addTickTimerCallback(new ItemReturnTimerCallback(mail.popParcel(context.getSource().registryAccess()), player, 0));
                mailbox.removeMail(mail.uuid().toString());
                logCommandSuccess(context);
                return 1;
@@ -491,7 +486,7 @@ public class FabricMail implements ModInitializer {
                         .withHoverEvent(new HoverEvent.ShowText(Component.translatable("text.fabricmail.click_delete_mail")))
                         .withColor(ChatFormatting.LIGHT_PURPLE)));
             
-            givePlayerStack(player, mail.popParcel(context.getSource().registryAccess()));
+            BorisLib.addTickTimerCallback(new ItemReturnTimerCallback(mail.popParcel(context.getSource().registryAccess()), player, 0));
             logCommandSuccess(context);
             return 1;
          }else{
@@ -519,25 +514,6 @@ public class FabricMail implements ModInitializer {
                   .withColor(ChatFormatting.LIGHT_PURPLE)));
       player.sendSystemMessage(Component.literal(""));
    }
-   
-   
-   public static void givePlayerStack(ServerPlayer player, ItemStack stack){
-      ItemEntity itemEntity;
-      boolean bl = player.getInventory().add(stack);
-      if(!bl || !stack.isEmpty()){
-         itemEntity = player.drop(stack, false);
-         if(itemEntity == null) return;
-         itemEntity.setNoPickUpDelay();
-         itemEntity.setTarget(player.getUUID());
-         return;
-      }
-      stack.setCount(1);
-      itemEntity = player.drop(stack, false);
-      if(itemEntity != null){
-         itemEntity.makeFakeItem();
-      }
-   }
-   
    
    private static void logCommandSuccess(CommandContext<CommandSourceStack> context){
       if(CONFIG.getBoolean(LOG_COMMAND_USAGE)){

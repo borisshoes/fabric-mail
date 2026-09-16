@@ -3,6 +3,7 @@ package net.borisshoes.fabricmail;
 import eu.pb4.sgui.api.ClickType;
 import eu.pb4.sgui.api.elements.GuiElementBuilder;
 import net.borisshoes.borislib.BorisLib;
+import net.borisshoes.borislib.callbacks.ItemReturnTimerCallback;
 import net.borisshoes.borislib.datastorage.DataAccess;
 import net.borisshoes.borislib.datastorage.DefaultPlayerData;
 import net.borisshoes.borislib.gui.*;
@@ -19,9 +20,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Predicate;
-
-import static net.borisshoes.borislib.utils.TextUtils.removeItalics;
-import static net.borisshoes.fabricmail.FabricMail.givePlayerStack;
 
 @SuppressWarnings("unchecked")
 public class MailGui extends PagedGui<MailMessage> {
@@ -90,7 +88,7 @@ public class MailGui extends PagedGui<MailMessage> {
                player.sendSystemMessage(Component.translatable("text.fabricmail.revoked_mail_to", fromText).withStyle(ChatFormatting.LIGHT_PURPLE));
             }
             
-            givePlayerStack(player, mail.popParcel(player.registryAccess()));
+            BorisLib.addTickTimerCallback(new ItemReturnTimerCallback(mail.popParcel(player.registryAccess()),player,0));
             mailbox.removeMail(mail.uuid().toString());
          }else{
             if(clickType == ClickType.MOUSE_RIGHT){
@@ -111,7 +109,7 @@ public class MailGui extends PagedGui<MailMessage> {
                   player.sendSystemMessage(Component.translatable("text.fabricmail.parcel_added_inventory").withStyle(ChatFormatting.GREEN, ChatFormatting.ITALIC));
                }
                
-               givePlayerStack(player, mail.popParcel(player.registryAccess()));
+               BorisLib.addTickTimerCallback(new ItemReturnTimerCallback(mail.popParcel(player.registryAccess()),player,0));
                mailbox.removeMail(mail.uuid().toString());
                player.sendSystemMessage(Component.translatable("gui.fabricmail.deleted_mail", mail.uuid().toString()).withStyle(ChatFormatting.LIGHT_PURPLE));
             }else{
@@ -133,7 +131,7 @@ public class MailGui extends PagedGui<MailMessage> {
                            .withHoverEvent(new HoverEvent.ShowText(Component.translatable("text.fabricmail.click_delete_mail")))
                            .withColor(ChatFormatting.LIGHT_PURPLE)));
                
-               givePlayerStack(player, mail.popParcel(player.registryAccess()));
+               BorisLib.addTickTimerCallback(new ItemReturnTimerCallback(mail.popParcel(player.registryAccess()),player,0));
             }
          }
          buildPage();
