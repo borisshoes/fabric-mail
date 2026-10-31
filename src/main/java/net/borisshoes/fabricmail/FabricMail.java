@@ -1,5 +1,6 @@
 package net.borisshoes.fabricmail;
 
+import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
@@ -34,6 +35,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.PermissionLevel;
 import net.minecraft.server.players.NameAndId;
+import net.minecraft.util.Util;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import org.apache.logging.log4j.Level;
@@ -43,6 +45,7 @@ import org.apache.logging.log4j.Logger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -63,7 +66,9 @@ public class FabricMail implements ModInitializer {
          new IntConfigValue("maxSentParcels", 10, new IntConfigValue.IntLimits(0, 1024))));
    public static final IConfigSetting<?> LOG_COMMAND_USAGE = registerConfigSetting(new ConfigSetting<>(
          new BooleanConfigValue("logCommandUsage", false)));
-   
+   public static final IConfigSetting<?> USE_MOJANG_LOOKUP = registerConfigSetting(new ConfigSetting<>(
+         new BooleanConfigValue("useMojangLookup", true)));
+
    private static IConfigSetting<?> registerConfigSetting(IConfigSetting<?> setting){
       Registry.register(CONFIG_SETTINGS, Identifier.fromNamespaceAndPath(MOD_ID, setting.getId()), setting);
       return setting;
@@ -164,7 +169,6 @@ public class FabricMail implements ModInitializer {
       if(online){
          for(ServerPlayer player : server.getPlayerList().getPlayers()){
             MailMessage newMail = new MailMessage(new NameAndId(UUID.fromString("291af7c7-2114-45bb-a97a-d3b4077392e8"), "System"), player.getGameProfile().name(), player.getGameProfile().id(), message, parcelTag);
-            newMail.validate(server, source, null);
             mailbox.addMail(newMail);
             player.sendSystemMessage(Component.translatable("text.fabricmail.received_mail").withStyle(s ->
                   s.withClickEvent(new ClickEvent.RunCommand("/mail read " + newMail.uuid().toString()))
@@ -177,7 +181,6 @@ public class FabricMail implements ModInitializer {
             if(server.getPlayerList().getPlayer(value.getPlayerID()) != null) continue;
             if(value.getUsername() == null || value.getUsername().isEmpty()) continue;
             MailMessage newMail = new MailMessage(new NameAndId(UUID.fromString("291af7c7-2114-45bb-a97a-d3b4077392e8"), "System"), value.getUsername(), value.getPlayerID(), message, parcelTag);
-            newMail.validate(server, source, null);
             mailbox.addMail(newMail);
          }
       }
@@ -327,40 +330,94 @@ public class FabricMail implements ModInitializer {
             }
          }
          
-         ServerPlayer onlineTo = server.getPlayerList().getPlayerByName(to);
-         MailMessage newMail = new MailMessage(new NameAndId(player.getGameProfile()), to, onlineTo == null ? null : onlineTo.getUUID(), message, parcelTag);
-         if(newMail.sender().equals(newMail.recipient())){
+         if(to.equalsIgnoreCase(player.getGameProfile().name())){
             source.sendFailure(Component.translatable("text.fabricmail.cannot_mail_self"));
             return -1;
-         }else{
-            if(!stack.isEmpty() && !player.isCreative())
-               player.getInventory().removeItem(stack);
-            
-            newMail.validate(server, source, player);
-            mailbox.addMail(newMail);
-            if(onlineTo != null){
-               onlineTo.sendSystemMessage(Component.translatable("text.fabricmail.received_mail").withStyle(s ->
-                     s.withClickEvent(new ClickEvent.RunCommand("/mail read " + newMail.uuid().toString()))
-                           .withHoverEvent(new HoverEvent.ShowText(Component.translatable("text.fabricmail.click_view_mail", newMail.uuid().toString())))
-                           .withColor(ChatFormatting.LIGHT_PURPLE)));
-            }
-            
-            player.sendSystemMessage(Component.translatable("text.fabricmail.message_sent").withStyle(s ->
-                  s.withClickEvent(new ClickEvent.RunCommand("/mail revoke " + newMail.uuid().toString()))
-                        .withHoverEvent(new HoverEvent.ShowText(Component.translatable("text.fabricmail.click_revoke_id", newMail.uuid().toString())))
-                        .withColor(ChatFormatting.AQUA)));
-            
-            LOGGER.log(Level.INFO, player.getScoreboardName() + " sent mail to " + to + ": " + message);
-            logCommandSuccess(context);
          }
-         
-         return -1;
+
+         NameAndId recipient = resolveLocalRecipient(server, to);
+         if(recipient == null && !CONFIG.getBoolean(USE_MOJANG_LOOKUP)){
+            source.sendFailure(Component.translatable("text.fabricmail.recipient_not_exist"));
+            return -1;
+         }
+
+         boolean removeParcel = !stack.isEmpty() && !player.isCreative();
+         if(removeParcel)
+            player.getInventory().removeItem(stack);
+
+         if(recipient != null){
+            deliverMail(context, player, recipient, message, parcelTag);
+         }else{
+            deliverAfterMojangLookup(context, player, to, message, parcelTag, removeParcel ? stack : ItemStack.EMPTY);
+         }
+         return 1;
       }else{
          source.sendFailure(Component.translatable("text.fabricmail.only_players_send"));
       }
       return -1;
    }
-   
+
+   private static NameAndId resolveLocalRecipient(MinecraftServer server, String name){
+      ServerPlayer online = server.getPlayerList().getPlayerByName(name);
+      if(online != null) return new NameAndId(online.getGameProfile());
+
+      List<DefaultPlayerData> matches = DataAccess.snapshotAllPlayerData(BorisLib.PLAYER_DATA_KEY).values().stream()
+            .filter(data -> name.equalsIgnoreCase(data.getUsername())).toList();
+      // Two players can share a stored name if one renamed and someone else took it; there is no way to tell who holds it now
+      if(matches.size() != 1) return null;
+      return new NameAndId(matches.getFirst().getPlayerID(), matches.getFirst().getUsername());
+   }
+
+   private static void deliverAfterMojangLookup(CommandContext<CommandSourceStack> context, ServerPlayer player, String to, String message, CompoundTag parcelTag, ItemStack parcelToReturn){
+      CommandSourceStack source = context.getSource();
+      MinecraftServer server = source.getServer();
+      Util.nonCriticalIoPool().execute(() -> {
+         Optional<GameProfile> profile;
+         try{
+            profile = server.services().profileResolver().fetchByName(to);
+         }catch(Exception e){
+            LOGGER.log(Level.WARN, "Failed to look up mail recipient " + to + ": " + e.getMessage());
+            profile = Optional.empty();
+         }
+         Optional<GameProfile> result = profile;
+         server.execute(() -> result.ifPresentOrElse(
+               gameProfile -> {
+                  DataAccess.getPlayer(gameProfile.id(), BorisLib.PLAYER_DATA_KEY).tryResolve(server);
+                  deliverMail(context, player, new NameAndId(gameProfile), message, parcelTag);
+               },
+               () -> {
+                  source.sendFailure(Component.translatable("text.fabricmail.recipient_not_exist"));
+                  if(!parcelToReturn.isEmpty()){
+                     BorisLib.addTickTimerCallback(new ItemReturnTimerCallback(parcelToReturn, player, 0));
+                  }
+               }
+         ));
+      });
+   }
+
+   private static void deliverMail(CommandContext<CommandSourceStack> context, ServerPlayer player, NameAndId recipient, String message, CompoundTag parcelTag){
+      MinecraftServer server = context.getSource().getServer();
+      MailStorage mailbox = DataAccess.getGlobal(MailStorage.KEY);
+      MailMessage newMail = new MailMessage(new NameAndId(player.getGameProfile()), recipient.name(), recipient.id(), message, parcelTag);
+      mailbox.addMail(newMail);
+
+      ServerPlayer onlineTo = server.getPlayerList().getPlayer(recipient.id());
+      if(onlineTo != null){
+         onlineTo.sendSystemMessage(Component.translatable("text.fabricmail.received_mail").withStyle(s ->
+               s.withClickEvent(new ClickEvent.RunCommand("/mail read " + newMail.uuid().toString()))
+                     .withHoverEvent(new HoverEvent.ShowText(Component.translatable("text.fabricmail.click_view_mail", newMail.uuid().toString())))
+                     .withColor(ChatFormatting.LIGHT_PURPLE)));
+      }
+
+      player.sendSystemMessage(Component.translatable("text.fabricmail.message_sent").withStyle(s ->
+            s.withClickEvent(new ClickEvent.RunCommand("/mail revoke " + newMail.uuid().toString()))
+                  .withHoverEvent(new HoverEvent.ShowText(Component.translatable("text.fabricmail.click_revoke_id", newMail.uuid().toString())))
+                  .withColor(ChatFormatting.AQUA)));
+
+      LOGGER.log(Level.INFO, player.getScoreboardName() + " sent mail to " + recipient.name() + ": " + message);
+      logCommandSuccess(context);
+   }
+
    private static int delete(CommandContext<CommandSourceStack> context, String mailIDStr){
       CommandSourceStack source = context.getSource();
       MinecraftServer server = source.getServer();

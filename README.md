@@ -21,6 +21,7 @@ A simple server-sided mod that gives players the ability to send messages to off
 * ```/mail airdrop all/online/offline <message>``` Sends the specified message to online, offline, or all online players and includes the item stack held in the sender's hand
 * ```/mailconfig maxSentParcels <0-1024>``` Sets the maximum amount of outbound parcels a player can have (useful if people try to store items in their outbound mail)
 * ```/mailconfig logCommandUsage <true/false>``` Enables or disables logging of successful command executions to the server console
+* ```/mailconfig useMojangLookup <true/false>``` Recipients are always looked up from the players who have joined the server first. When enabled (default), recipients who have never joined are looked up through the Mojang API. When disabled, no Mojang calls are made and mail to those players fails to send
 
 ### Permission Nodes
 Fabric Mail uses the [Fabric Permissions API](https://github.com/lucko/fabric-permissions-api) for command permissions. Each node has a fallback vanilla permission level for servers without a permissions mod.

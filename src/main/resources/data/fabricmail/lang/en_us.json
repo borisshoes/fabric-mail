@@ -3,6 +3,8 @@
   "command.fabricmail.log_command_usage.getter_setter": "Log command usage: %s",
   "command.fabricmail.max_sent_parcels.comment": "The maximum amount of un-collected outbound parcels a player can have before they cannot send any more.",
   "command.fabricmail.max_sent_parcels.getter_setter": "Maximum outbound parcels: %s",
+  "command.fabricmail.use_mojang_lookup.comment": "Whether to ask Mojang for recipients that have never joined this server. If disabled, mail to those players fails to send.",
+  "command.fabricmail.use_mojang_lookup.getter_setter": "Use Mojang lookup: %s",
   "gui.fabricmail.click_read": "%s to READ this mail",
   "gui.fabricmail.click_revoke": "%s to REVOKE this mail",
   "gui.fabricmail.contains_parcel_gui": "< Contains Parcel >",
